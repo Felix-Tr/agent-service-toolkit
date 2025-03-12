@@ -1,0 +1,57 @@
+package de.trafficvalidator.rules;
+
+import de.trafficvalidator.model.Connection;
+import de.trafficvalidator.model.SignalGroup;
+import de.trafficvalidator.model.ValidationResult;
+import de.trafficvalidator.model.Lane;
+import de.trafficvalidator.model.Direction;
+
+import java.util.List;
+
+dialect "java"
+
+/**
+ * Rules for validating if a green cyclist arrow sign (Verkehrszeichen 721) can be installed
+ * at a specific right turn connection.
+ * 
+ * Based on VwV-StVo zu § 37, XI., 1. a-c:
+ * a) No conflict-free left turn signals for opposing traffic
+ * b) No green diagonal arrow for opposing left-turning traffic
+ * c) No directional arrows in the traffic lights for the right-turn lane
+ */
+ 
+rule "CheckConflictFreeLeftTurnForOpposingTraffic"
+    when
+        $connection : Connection(isCyclistRightTurn())
+        $result : ValidationResult(connection == $connection)
+        $conflictingConnection : Connection(isConflictingLeftTurn($connection))
+        $signalGroup : SignalGroup() from $conflictingConnection.getSignalGroup()
+    then
+        if ($signalGroup.isDiagonalLeftTurn()) {
+            $result.addFailure("VwV-StVo zu § 37, XI., 1. b) - Opposing traffic has a green diagonal arrow for left turn (DN signal group: " + $signalGroup.getName() + ")");
+        } else if ($signalGroup.controlsOnlyLeftTurns()) {
+            $result.addFailure("VwV-StVo zu § 37, XI., 1. a) - Opposing traffic has a conflict-free left turn signal (dedicated signal group: " + $signalGroup.getName() + ")");
+        }
+end
+
+rule "CheckDirectionalArrowsInTrafficLights"
+    when
+        $connection : Connection(isCyclistRightTurn())
+        $result : ValidationResult(connection == $connection)
+        $signalGroup : SignalGroup() from $connection.getSignalGroup()
+        // We don't have direct access to traffic light arrow information from the data model
+        // This would need additional information not present in the current data model
+    then
+        // This is a placeholder rule that would need to be implemented
+        // with actual data about directional arrows in the traffic lights
+        // Currently we cannot check this rule properly with the data available
+        System.out.println("WARNING: Cannot fully verify rule c) - Need traffic light arrow data");
+end
+
+rule "MarkAsPotentiallyValid"
+    when
+        $connection : Connection(isCyclistRightTurn())
+        $result : ValidationResult(connection == $connection, isValid())
+    then
+        System.out.println("Connection " + $connection.getId() + " is potentially valid for green cyclist arrow");
+end

@@ -23,8 +23,8 @@ from schema.task_data import TaskData, TaskDataStatus
 # The app heavily uses AgentClient to interact with the agent's FastAPI endpoints.
 
 
-APP_TITLE = "Agent Service Toolkit"
-APP_ICON = "🧰"
+APP_TITLE = "LSA Agent Service Toolkit"
+APP_ICON = "🚦🧰"
 
 
 async def main() -> None:
