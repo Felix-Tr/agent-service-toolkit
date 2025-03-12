@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: traffic-light-validator
+  main:
+    banner-mode: "console"
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+
+storage:
+  type: file  # Options: 'file' or 'database'
+  basePath: configurations
+  rulesPath: rules
+
+logging:
+  level:
+    root: INFO
+    de.trafficvalidator: DEBUG
+    org.springframework: INFO
+    org.drools: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

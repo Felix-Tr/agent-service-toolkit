@@ -4,6 +4,7 @@ import de.trafficvalidator.config.StorageConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
@@ -25,6 +26,7 @@ import java.util.stream.Stream;
  * File system implementation of StorageService.
  * Reads configuration files from the file system or classpath resources.
  */
+@Primary
 @Service
 public class FileStorageService implements StorageService {
     private static final Logger logger = LoggerFactory.getLogger(FileStorageService.class);
