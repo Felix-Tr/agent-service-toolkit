@@ -5,6 +5,7 @@ import de.trafficvalidator.service.ValidationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,6 +47,16 @@ public class ValidationController {
         
         Map<String, Object> results = validationService.validateIntersection(id, ruleset);
         
+        // Check if there was an error loading the intersection
+        if (results.containsKey("error") && results.get("error") != null) {
+            String errorMessage = (String) results.get("error");
+            if (errorMessage.contains("Failed to load MAPEM file for ID")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(results);
+            }
+            // For other errors, return 500 or appropriate status
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(results);
+        }
+        
         return ResponseEntity.ok(results);
     }
     
@@ -60,6 +71,16 @@ public class ValidationController {
         logger.info("Getting summary for intersection {}", id);
         
         Map<String, Object> summary = validationService.getIntersectionSummary(id);
+        
+        // Check if there was an error loading the intersection
+        if (summary.containsKey("error") && summary.get("error") != null) {
+            String errorMessage = (String) summary.get("error");
+            if (errorMessage.contains("Failed to load MAPEM file for ID")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(summary);
+            }
+            // For other errors, return 500 or appropriate status
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(summary);
+        }
         
         return ResponseEntity.ok(summary);
     }

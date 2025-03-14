@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "type": "java",
+        "name": "Launch Spring Boot Application",
+        "request": "launch",
+        "mainClass": "de.trafficvalidator.TrafficValidatorApplication",
+        "projectName": "traffic-light-validator",
+        "vmArgs": "-Dspring.config.location=classpath:/application.yml,classpath:/application-secret.yml",
+        "args": ""
+      }
+    ]
+  }
+  

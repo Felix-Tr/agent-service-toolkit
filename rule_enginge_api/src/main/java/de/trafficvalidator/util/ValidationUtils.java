@@ -107,7 +107,7 @@ public class ValidationUtils {
         // Signal groups
         sb.append("\nSignal Groups:\n");
         for (SignalGroup group : intersection.getSignalGroups().values()) {
-            sb.append("  ").append(group.getId()).append(": ")
+            sb.append("  ").append(group.getPhysicalSignalGroupId()).append(": ")
               .append(group.getName()).append(" (").append(group.getType()).append(") - ")
               .append(group.getControlledConnections().size()).append(" connections\n");
         }

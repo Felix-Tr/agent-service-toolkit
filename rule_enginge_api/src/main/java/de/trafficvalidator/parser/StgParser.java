@@ -61,7 +61,7 @@ public class StgParser {
         
         for (SignalGroup signalGroup : signalGroups.values()) {
             // Update existing signal group or add new one
-            SignalGroup existingGroup = intersection.getSignalGroup(signalGroup.getId());
+            SignalGroup existingGroup = intersection.getSignalGroup(signalGroup.getPhysicalSignalGroupId());
             if (existingGroup != null) {
                 // Update existing group name and type
                 existingGroup.setName(signalGroup.getName());

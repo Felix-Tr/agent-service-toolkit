@@ -48,7 +48,19 @@ public class ValidationResult {
             return "Unknown";
         }
         
-        return ingressLane.getDirection().name() + " → " + egressLane.getDirection().name();
+        // Include both cardinal directions and maneuver type
+        String maneuverInfo = "";
+        if (connection.isStraight()) {
+            maneuverInfo = " [Straight]";
+        } else if (connection.isLeftTurn()) {
+            maneuverInfo = " [Left Turn]";
+        } else if (connection.isRightTurn()) {
+            maneuverInfo = " [Right Turn]";
+        } else if (connection.isUTurn()) {
+            maneuverInfo = " [U-Turn]";
+        }
+        
+        return ingressLane.getDirection().name() + " → " + egressLane.getDirection().name() + maneuverInfo;
     }
     
     @Override
