@@ -37,12 +37,15 @@ public class GreenCyclistArrowRules {
      * Default constructor that creates a new KieContainer
      * This is kept for backward compatibility and testing
      * but should be avoided in a Spring environment
+     * @deprecated Use the constructor with KieContainer parameter instead
      */
+    @Deprecated
     public GreenCyclistArrowRules() {
         try {
             // Initialize Drools KIE container
             KieServices kieServices = KieServices.Factory.get();
-            kieContainer = kieServices.getKieClasspathContainer();
+            // Use the current ClassLoader to avoid conflicts
+            kieContainer = kieServices.getKieClasspathContainer(getClass().getClassLoader());
 
             logger.info("Drools rule engine initialized successfully with new KieContainer");
         } catch (Exception e) {
@@ -89,9 +92,16 @@ public class GreenCyclistArrowRules {
         ValidationResult result = new ValidationResult(connection);
 
         // Create KIE session for rules
-        KieSession kieSession = kieContainer.newKieSession("GreenCyclistArrowRulesSession");
-
+        KieSession kieSession = null;
         try {
+            // Try to get the named session first, fall back to default if not found
+            try {
+                kieSession = kieContainer.newKieSession("GreenCyclistArrowRulesSession");
+            } catch (Exception e) {
+                logger.warn("Named session 'GreenCyclistArrowRulesSession' not found, using default session", e);
+                kieSession = kieContainer.newKieSession();
+            }
+
             // Insert facts into session
             kieSession.insert(connection);
             kieSession.insert(result);
@@ -122,7 +132,9 @@ public class GreenCyclistArrowRules {
 
             return result;
         } finally {
-            kieSession.dispose();
+            if (kieSession != null) {
+                kieSession.dispose();
+            }
         }
     }
 

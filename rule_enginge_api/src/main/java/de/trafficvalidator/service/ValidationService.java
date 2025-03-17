@@ -175,46 +175,57 @@ public class ValidationService {
      * @return Validation results
      */
     private List<ValidationResult> validateWithCustomRuleset(Intersection intersection, String ruleset) {
+        KieContainer customKieContainer = null;
+        KieSession kieSession = null;
+        
         try {
             // Load the rule file
             InputStream ruleStream = storageService.getRulesetFile(ruleset);
 
             // Create a dynamic KieContainer with the custom rules
-            KieContainer customKieContainer = createKieContainerFromRules(ruleset, ruleStream);
+            customKieContainer = createKieContainerFromRules(ruleset, ruleStream);
 
             // Create a session for each validation
-            KieSession kieSession = customKieContainer.newKieSession();
-
-            try {
-                intersection.getConnections().forEach(connection -> {
-                    ValidationResult result = new ValidationResult(connection);
-
-                    // Insert facts
-                    kieSession.insert(connection);
-                    kieSession.insert(result);
-                    kieSession.insert(intersection);
-
-                    // Insert physical signal groups
-                    for (SignalGroup group : intersection.getPhysicalSignalGroups().values()) {
-                        kieSession.insert(group);
-                    }
-                });
-
-                // Fire rules
-                kieSession.fireAllRules();
-
-                // Collect results (will be updated by the rules)
-                List<ValidationResult> allResults = new ArrayList<>();
-                kieSession.getObjects(obj -> obj instanceof ValidationResult)
-                        .forEach(obj -> allResults.add((ValidationResult) obj));
-
-                return allResults;
-            } finally {
-                kieSession.dispose();
+            kieSession = customKieContainer.newKieSession();
+            
+            // Create results list
+            List<ValidationResult> results = new ArrayList<>();
+            
+            // Insert intersection fact
+            kieSession.insert(intersection);
+            
+            // Insert all physical signal groups
+            for (SignalGroup group : intersection.getPhysicalSignalGroups().values()) {
+                kieSession.insert(group);
             }
+            
+            // Process each connection separately
+            for (Connection connection : intersection.getConnections()) {
+                ValidationResult result = new ValidationResult(connection);
+                
+                // Insert facts
+                kieSession.insert(connection);
+                kieSession.insert(result);
+                
+                results.add(result);
+            }
+
+            // Fire rules
+            kieSession.fireAllRules();
+
+            // Return results (they will be updated by the rules)
+            return results;
         } catch (Exception e) {
             logger.error("Failed to validate with custom ruleset: {}", ruleset, e);
             throw new RuntimeException("Failed to validate with custom ruleset: " + ruleset, e);
+        } finally {
+            // Properly dispose of resources
+            if (kieSession != null) {
+                kieSession.dispose();
+            }
+            if (customKieContainer != null) {
+                customKieContainer.dispose();
+            }
         }
     }
 
@@ -230,8 +241,9 @@ public class ValidationService {
         KieServices kieServices = KieServices.Factory.get();
         KieFileSystem kfs = kieServices.newKieFileSystem();
 
-        // Create a unique release ID for this ruleset
-        ReleaseId releaseId = kieServices.newReleaseId("de.trafficvalidator", "dynamic-rules-" + ruleset, "1.0.0");
+        // Create a unique release ID for this ruleset with a timestamp to ensure uniqueness
+        String timestamp = String.valueOf(System.currentTimeMillis());
+        ReleaseId releaseId = kieServices.newReleaseId("de.trafficvalidator", "dynamic-rules-" + ruleset, "1.0.0-" + timestamp);
         kfs.generateAndWritePomXML(releaseId);
 
         // Read the rule file content
@@ -250,8 +262,8 @@ public class ValidationService {
             throw new RuntimeException("Failed to build rules: " + results.getMessages());
         }
 
-        // Create and return the KieContainer
-        return kieServices.newKieContainer(releaseId);
+        // Create a KieContainer with the current ClassLoader
+        return kieServices.newKieContainer(releaseId, getClass().getClassLoader());
     }
 
     /**
