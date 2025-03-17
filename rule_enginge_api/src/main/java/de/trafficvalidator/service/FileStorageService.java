@@ -19,7 +19,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -82,23 +81,60 @@ public class FileStorageService implements StorageService {
     @Override
     public List<String> getAvailableIntersectionIds() {
         try {
+            // Use ResourceLoader to get the resource from classpath
             Resource baseResource = resourceLoader.getResource("classpath:" + storageConfig.getBasePath());
-            File baseDir = baseResource.getFile();
             
-            if (baseDir.exists() && baseDir.isDirectory()) {
-                File[] subDirs = baseDir.listFiles(File::isDirectory);
-                if (subDirs != null) {
-                    List<String> ids = new ArrayList<>();
-                    for (File dir : subDirs) {
-                        File mapemFile = new File(dir, "mapem.xml");
-                        File stgFile = new File(dir, "stg.txt");
-                        
-                        if (mapemFile.exists() && stgFile.exists()) {
-                            ids.add(dir.getName());
-                        }
-                    }
-                    return ids;
+            // Check if the resource exists and is a directory
+            if (baseResource.exists()) {
+                File baseDir;
+                try {
+                    baseDir = baseResource.getFile();
+                } catch (FileNotFoundException e) {
+                    logger.warn("Resource path not found as a file: {}", storageConfig.getBasePath());
+                    return new ArrayList<>();
                 }
+                
+                if (baseDir.isDirectory()) {
+                    File[] subDirs = baseDir.listFiles(File::isDirectory);
+                    if (subDirs != null) {
+                        List<String> ids = new ArrayList<>();
+                        for (File dir : subDirs) {
+                            File mapemFile = new File(dir, "mapem.xml");
+                            File stgFile = new File(dir, "configuration.stg");
+                            
+                            if (mapemFile.exists() && stgFile.exists()) {
+                                ids.add(dir.getName());
+                            } else {
+                                logger.debug("Directory {} does not contain required files (mapem.xml and configuration.stg)", dir.getName());
+                            }
+                        }
+                        return ids;
+                    }
+                }
+            }
+            
+            // If we can't access the directory as a file, try to list resources using the class path
+            try {
+                ClassPathResource resource = new ClassPathResource(storageConfig.getBasePath());
+                if (resource.exists()) {
+                    Path path = Paths.get(resource.getURI());
+                    try (Stream<Path> paths = Files.list(path)) {
+                        List<String> ids = new ArrayList<>();
+                        List<Path> directories = paths.filter(Files::isDirectory).toList();
+                        
+                        for (Path dir : directories) {
+                            Path mapemPath = dir.resolve("mapem.xml");
+                            Path stgPath = dir.resolve("configuration.stg");
+                            
+                            if (Files.exists(mapemPath) && Files.exists(stgPath)) {
+                                ids.add(dir.getFileName().toString());
+                            }
+                        }
+                        return ids;
+                    }
+                }
+            } catch (IOException e) {
+                logger.warn("Failed to list resources using ClassPathResource: {}", e.getMessage());
             }
             
             logger.warn("No intersection configurations found in {}", storageConfig.getBasePath());

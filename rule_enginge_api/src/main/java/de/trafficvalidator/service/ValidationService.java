@@ -162,8 +162,8 @@ public class ValidationService {
      * @return Validation results
      */
     private List<ValidationResult> validateWithCyclistArrowRules(Intersection intersection) {
-        // Use the existing rules implementation
-        GreenCyclistArrowRules rules = new GreenCyclistArrowRules();
+        // Use the existing rules implementation with the injected KieContainer
+        GreenCyclistArrowRules rules = new GreenCyclistArrowRules(kieContainer);
         return rules.validateIntersection(intersection);
     }
 

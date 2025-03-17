@@ -6,7 +6,6 @@ import de.trafficvalidator.model.Intersection;
 import de.trafficvalidator.model.Lane;
 import de.trafficvalidator.model.SignalGroup;
 import de.trafficvalidator.model.ValidationResult;
-import org.drools.core.impl.InternalKieContainer;
 import org.kie.api.KieServices;
 import org.kie.api.runtime.KieContainer;
 import org.kie.api.runtime.KieSession;
@@ -22,15 +21,30 @@ import java.util.List;
 public class GreenCyclistArrowRules {
     private static final Logger logger = LoggerFactory.getLogger(GreenCyclistArrowRules.class);
 
-    private KieContainer kieContainer;
+    private final KieContainer kieContainer;
 
+    /**
+     * Constructor that accepts an existing KieContainer
+     * 
+     * @param kieContainer The KieContainer to use for rule execution
+     */
+    public GreenCyclistArrowRules(KieContainer kieContainer) {
+        this.kieContainer = kieContainer;
+        logger.info("GreenCyclistArrowRules initialized with provided KieContainer");
+    }
+
+    /**
+     * Default constructor that creates a new KieContainer
+     * This is kept for backward compatibility and testing
+     * but should be avoided in a Spring environment
+     */
     public GreenCyclistArrowRules() {
         try {
             // Initialize Drools KIE container
             KieServices kieServices = KieServices.Factory.get();
             kieContainer = kieServices.getKieClasspathContainer();
 
-            logger.info("Drools rule engine initialized successfully");
+            logger.info("Drools rule engine initialized successfully with new KieContainer");
         } catch (Exception e) {
             logger.error("Failed to initialize Drools rule engine", e);
             throw new RuntimeException("Failed to initialize rule engine", e);

@@ -11,6 +11,18 @@ server:
   compression:
     enabled: true
 
+# OpenAPI Documentation Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    disable-swagger-default-url: true
+  packages-to-scan: de.trafficvalidator.controller
+  show-actuator: true
+
 storage:
   type: file  # Options: 'file' or 'database'
   basePath: configurations

@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Utility class to calculate cardinal directions for lanes based on their coordinates.
@@ -37,48 +36,6 @@ public class DirectionCalculator {
 
     public DirectionCalculator(Intersection intersection) {
         this.intersection = intersection;
-    }
-
-    /**
-     * Calculates cardinal directions for all lanes in the intersection
-     */
-    public void calculateDirections() {
-        logger.info("Calculating cardinal directions for lanes");
-
-        // Calculate the center of the intersection based on stop line positions
-        calculateIntersectionCenter();
-        
-        logger.info("Calculated intersection center: ({}, {})", centerX, centerY);
-
-        // Process each lane
-        for (Lane lane : intersection.getLanes().values()) {
-            if (lane.getNodeList().isEmpty()) {
-                logger.warn("Lane {} has no nodes, cannot calculate direction", lane.getId());
-                continue;
-            }
-
-            // For ingress lanes, calculate direction based on first node to calculated center
-            if (lane.isIngress()) {
-                Lane.NodePoint node = lane.getFirstNode();
-                if (node != null) {
-                    Direction direction = calculateCardinalDirection(node.getX(), node.getY());
-                    lane.setCardinalDirection(direction);
-                    logger.debug("Set direction for ingress lane {}: {}", lane.getId(), direction);
-                }
-            }
-            // For egress lanes, calculate direction based on calculated center to last node
-            else if (lane.isEgress()) {
-                Lane.NodePoint node = lane.getLastNode();
-                if (node != null) {
-                    Direction direction = calculateCardinalDirection(node.getX(), node.getY());
-                    lane.setCardinalDirection(direction);
-                    logger.debug("Set direction for egress lane {}: {}", lane.getId(), direction);
-                }
-            }
-        }
-
-        // Log a summary of directions
-        logDirectionSummary();
     }
 
     /**
@@ -134,7 +91,7 @@ public class DirectionCalculator {
         // Calculate dx and dy relative to center (point - center)
         double dx = x - centerX;
         double dy = y - centerY;
-        
+
         // Calculate the angle in compass bearings (0° = North, 90° = East, etc.)
         // This matches the Python example: (90 - math.degrees(math.atan2(dy, dx))) % 360
         double angleRad = Math.atan2(dy, dx);
@@ -192,25 +149,6 @@ public class DirectionCalculator {
     }
 
     /**
-     * Gets lanes by cardinal direction
-     */
-    public Map<Direction, Lane> getRepresentativeLanesByDirection() {
-        Map<Direction, Lane> result = new HashMap<>();
-
-        // For each direction, find one representative lane
-        for (Direction direction : Direction.values()) {
-            for (Lane lane : intersection.getLanes().values()) {
-                if (lane.getCardinalDirection() == direction && lane.isIngress()) {
-                    result.put(direction, lane);
-                    break;
-                }
-            }
-        }
-
-        return result;
-    }
-
-    /**
      * Calculates cardinal directions for all approaches in the intersection
      */
     public void calculateDirectionsForApproaches() {
@@ -241,7 +179,7 @@ public class DirectionCalculator {
             // Calculate average position for ingress lanes in this approach
             List<Lane> ingressLanes = lanes.stream()
                     .filter(Lane::isIngress)
-                    .collect(Collectors.toList());
+                    .toList();
             
             if (!ingressLanes.isEmpty()) {
                 // Calculate direction based on ingress lanes
@@ -282,7 +220,7 @@ public class DirectionCalculator {
                 // If no ingress lanes, try using egress lanes
                 List<Lane> egressLanes = lanes.stream()
                         .filter(Lane::isEgress)
-                        .collect(Collectors.toList());
+                        .toList();
                 
                 if (!egressLanes.isEmpty()) {
                     // Calculate direction based on egress lanes
