@@ -200,21 +200,30 @@ public class MapemParser {
         // Remove any spaces or underscores
         sharedWith = sharedWith.replaceAll("[\\s_]", "");
 
-        // Check each flag position
-        if (sharedWith.length() >= 4 && sharedWith.charAt(sharedWith.length() - 4) == '1') {
+        // In ASN.1 notation, bits are numbered from 0 (leftmost) to n-1 (rightmost)
+        // We need to check specific bit positions based on the ASN.1 definition
+        
+        // Convert to char array for easier bit access
+        char[] bits = sharedWith.toCharArray();
+        
+        // Check for individualMotorizedVehicleTraffic (bit 3)
+        if (bits.length > 3 && bits[3] == '1') {
             lane.setAllowsIndividualMotorizedVehicles(true);
         }
-
-        if (sharedWith.length() >= 8 && sharedWith.charAt(sharedWith.length() - 8) == '1') {
-            lane.setAllowsCyclists(true);
+        
+        // Check for busVehicleTraffic (bit 4)
+        if (bits.length > 4 && bits[4] == '1') {
+            lane.setAllowsPublicTransport(true);
         }
-
-        if (sharedWith.length() >= 7 && sharedWith.charAt(sharedWith.length() - 7) == '1') {
+        
+        // Check for pedestriansTraffic (bit 6)
+        if (bits.length > 6 && bits[6] == '1') {
             lane.setAllowsPedestrians(true);
         }
-
-        if (sharedWith.length() >= 5 && sharedWith.charAt(sharedWith.length() - 5) == '1') {
-            lane.setAllowsPublicTransport(true);
+        
+        // Check for cyclistVehicleTraffic (bit 7)
+        if (bits.length > 7 && bits[7] == '1') {
+            lane.setAllowsCyclists(true);
         }
     }
 

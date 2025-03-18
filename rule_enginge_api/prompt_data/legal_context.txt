@@ -1,10 +1,11 @@
 # Kriterien welche mit drools geprüft werden
 
-Im ersten Schritt werden 3 Kriterien geprüft:
+Im ersten Schritt werden 4 Kriterien geprüft:
 
 - VwV-StVo zu § 37, XI., 1. a)
 - VwV-StVo zu § 37, XI., 1. b)
 - VwV-StVo zu § 37, XI., 1. c)
+- VwV-StVo zu § 37, XI., 1. f)
 
 # Zusätzliche Kriterien
 
