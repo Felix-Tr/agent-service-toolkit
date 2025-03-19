@@ -95,15 +95,15 @@ public class ValidationController {
                 StringBuilder summary = new StringBuilder();
                 Map<String, Object> statistics = (Map<String, Object>) formattedResults.get("statistics");
                 
-                // Add summary statistics
-                summary.append("Summary:\n");
-                summary.append("Total connections: ").append(statistics.get("totalConnections")).append("\n");
-                summary.append("Cyclist right turns: ").append(statistics.get("cyclistRightTurns")).append("\n");
-                summary.append("Valid cyclist right turns: ").append(statistics.get("validCyclistRightTurns")).append("\n");
-                summary.append("Invalid cyclist right turns: ").append(statistics.get("invalidCyclistRightTurns")).append("\n\n");
+                // Add summary statistics in German
+                summary.append("Zusammenfassung:\n");
+                summary.append("Gesamte Verbindungen: ").append(statistics.get("totalConnections")).append("\n");
+                summary.append("Fahrrad-Rechtsabbieger: ").append(statistics.get("cyclistRightTurns")).append("\n");
+                summary.append("Gültige Fahrrad-Rechtsabbieger: ").append(statistics.get("validCyclistRightTurns")).append("\n");
+                summary.append("Ungültige Fahrrad-Rechtsabbieger: ").append(statistics.get("invalidCyclistRightTurns")).append("\n\n");
                 
-                // Add details by approach
-                summary.append("Results:\n\n");
+                // Add details by approach in German
+                summary.append("Ergebnisse:\n\n");
                 
                 Map<String, List<Map<String, Object>>> approaches = 
                         (Map<String, List<Map<String, Object>>>) formattedResults.get("approaches");
@@ -112,7 +112,7 @@ public class ValidationController {
                     String approachDirection = entry.getKey();
                     List<Map<String, Object>> connections = entry.getValue();
                     
-                    summary.append("Approach from ").append(approachDirection).append(":\n");
+                    summary.append("Zufahrt von ").append(approachDirection).append(":\n");
                     
                     // Group connections by whether they're cyclist right turns
                     List<Map<String, Object>> cyclistRightTurns = connections.stream()
@@ -123,16 +123,16 @@ public class ValidationController {
                             .filter(conn -> !Boolean.TRUE.equals(conn.get("isCyclistRightTurn")))
                             .collect(Collectors.toList());
                     
-                    // Output cyclist right turns
+                    // Output cyclist right turns in German
                     if (!cyclistRightTurns.isEmpty()) {
-                        summary.append("  Cyclist right turns:\n");
+                        summary.append("  Fahrrad-Rechtsabbieger:\n");
                         for (Map<String, Object> conn : cyclistRightTurns) {
                             String direction = (String) conn.get("direction");
                             boolean isValid = (boolean) conn.get("valid");
                             
-                            summary.append("  - Connection ").append(conn.get("connectionId"))
+                            summary.append("  - Verbindung ").append(conn.get("connectionId"))
                                   .append(": ").append(direction)
-                                  .append(" (").append(isValid ? "VALID" : "INVALID").append(")\n");
+                                  .append(" (").append(isValid ? "GÜLTIG" : "UNGÜLTIG").append(")\n");
                             
                             // Add reasons if invalid
                             if (!isValid && conn.containsKey("reasons")) {
@@ -143,13 +143,13 @@ public class ValidationController {
                             }
                         }
                     } else {
-                        summary.append("  No cyclist right turns from this approach\n");
+                        summary.append("  Keine Fahrrad-Rechtsabbieger von dieser Zufahrt\n");
                     }
                     
-                    // Output other connections (brief summary)
+                    // Output other connections (brief summary) in German
                     if (!otherConnections.isEmpty()) {
-                        summary.append("  Other connections: ").append(otherConnections.size())
-                               .append(" (not applicable for cyclist right turn signs)\n");
+                        summary.append("  Andere Verbindungen: ").append(otherConnections.size())
+                               .append(" (nicht relevant für Grünpfeil-Beschilderung)\n");
                     }
                     
                     summary.append("\n");

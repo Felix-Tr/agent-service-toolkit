@@ -1,6 +1,7 @@
 package de.trafficvalidator.rules;
 
 import de.trafficvalidator.model.Connection;
+import de.trafficvalidator.model.Intersection;
 import de.trafficvalidator.model.SignalGroup;
 import de.trafficvalidator.model.ValidationResult;
 import de.trafficvalidator.model.Lane;
