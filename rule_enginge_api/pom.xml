@@ -22,6 +22,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <drools.version>7.73.0.Final</drools.version>
         <springdoc.version>1.6.15</springdoc.version>
+        <swagger.version>2.2.0</swagger.version>
     </properties>
 
     <dependencies>
@@ -54,6 +55,16 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-webmvc-core</artifactId>
             <version>${springdoc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-models</artifactId>
+            <version>2.2.8</version>
+        </dependency>
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations</artifactId>
+            <version>2.2.8</version>
         </dependency>
 
         <!-- XML Parsing -->

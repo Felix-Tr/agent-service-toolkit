@@ -19,39 +19,98 @@ dialect "java"
  * b) No green diagonal arrow for opposing left-turning traffic
  * c) No directional arrows in the traffic lights for the right-turn lane
  */
- 
-rule "CheckConflictFreeLeftTurnForOpposingTraffic"
+
+/**
+ * This rule will mark connections that aren't cyclist right turns as not applicable.
+ * Only connections explicitly marked as cyclist right turn should be validated.
+ */
+rule "IdentifyRelevantConnections"
+    salience 100 // Higher priority - run this first
     when
-        $connection : Connection(isCyclistRightTurn())
+        $connection : Connection(isCyclistRightTurn() == false)
         $result : ValidationResult(connection == $connection)
-        $conflictingConnection : Connection(isConflictingLeftTurn($connection))
-        $signalGroup : SignalGroup() from $conflictingConnection.getSignalGroup()
     then
-        if ($signalGroup.isDiagonalLeftTurn()) {
-            $result.addFailure("VwV-StVo zu § 37, XI., 1. b) - Opposing traffic has a green diagonal arrow for left turn (DN signal group: " + $signalGroup.getName() + ")");
-        } else if ($signalGroup.controlsOnlyLeftTurns()) {
-            $result.addFailure("VwV-StVo zu § 37, XI., 1. a) - Opposing traffic has a conflict-free left turn signal (dedicated signal group: " + $signalGroup.getName() + ")");
-        }
+        // No action needed - we'll just skip further rule processing for this connection
+        // This is a simple filter rule - only cyclist right turn connections proceed to the next rules
 end
 
+/**
+ * Rule to check for conflict-free left turn signals from opposing traffic
+ * VwV-StVo zu § 37, XI., 1. a)
+ */
+rule "CheckConflictFreeLeftTurnSignals"
+    when
+        // The cyclist's right turn connection
+        $rightTurn : Connection(isCyclistRightTurn())
+        $result : ValidationResult(connection == $rightTurn)
+        
+        // Find any left turn from opposite direction
+        $leftTurn : Connection(
+            isLeftTurn() == true, 
+            this != $rightTurn,
+            isFromOppositeDirectionOf($rightTurn) == true,
+            sharesEgressLaneWith($rightTurn) == true
+        )
+        
+        // Check if it has a signal group that only controls left turns
+        $signalGroup : SignalGroup(
+            controlsOnlyLeftTurns() == true
+        ) from $leftTurn.getSignalGroup()
+    then
+        $result.addFailure("VwV-StVo zu § 37, XI., 1. a) - dem entgegenkommenden Verkehr wird ein konfliktfreies Abbiegen nach links signalisiert (relevante Signalgruppe: " + $signalGroup.getName() + ")");
+end
+
+/**
+ * Rule to check for diagonal green arrows for opposing left-turning traffic
+ * VwV-StVo zu § 37, XI., 1. b)
+ */
+rule "CheckDiagonalGreenArrows"
+    when
+        // The cyclist's right turn connection
+        $rightTurn : Connection(isCyclistRightTurn())
+        $result : ValidationResult(connection == $rightTurn)
+        
+        // Find any left turn from opposite direction
+        $leftTurn : Connection(
+            isLeftTurn() == true, 
+            this != $rightTurn,
+            isFromOppositeDirectionOf($rightTurn) == true,
+            sharesEgressLaneWith($rightTurn) == true
+        )
+        
+        // Check if it has a diagonal green arrow signal group
+        $signalGroup : SignalGroup(
+            isDiagonalLeftTurn() == true
+        ) from $leftTurn.getSignalGroup()
+    then
+        $result.addFailure("VwV-StVo zu § 37, XI., 1. b) - für den entgegenkommenden Linksabbieger wird der grüne Pfeil gemäß § 37 Abs. 2 Nr. 1 Satz 4 verwendet (relevante Signalgruppe: " + $signalGroup.getName() + ")");
+end
+
+/**
+ * Rule to check for directional arrows in traffic lights
+ * VwV-StVo zu § 37, XI., 1. c)
+ */
 rule "CheckDirectionalArrowsInTrafficLights"
     when
-        $connection : Connection(isCyclistRightTurn())
-        $result : ValidationResult(connection == $connection)
-        $signalGroup : SignalGroup() from $connection.getSignalGroup()
-        // We don't have direct access to traffic light arrow information from the data model
-        // This would need additional information not present in the current data model
+        $rightTurn : Connection(isCyclistRightTurn())
+        $result : ValidationResult(connection == $rightTurn)
+        $signalGroup : SignalGroup(
+            isBicycleSignal() == false,
+            isAdditionalRightTurnArrow() == true
+        ) from $rightTurn.getSignalGroup()
     then
-        // This is a placeholder rule that would need to be implemented
-        // with actual data about directional arrows in the traffic lights
-        // Currently we cannot check this rule properly with the data available
-        System.out.println("WARNING: Cannot fully verify rule c) - Need traffic light arrow data");
+        $result.addFailure("VwV-StVo zu § 37, XI., 1. c) - Pfeile in den für den Rechtsabbieger gültigen Lichtzeichen schreiben die Fahrtrichtung vor (relevante Signalgruppe: " + $signalGroup.getName() + ")");
 end
 
+
+/**
+ * Rule to mark valid connections
+ */
 rule "MarkAsPotentiallyValid"
     when
         $connection : Connection(isCyclistRightTurn())
         $result : ValidationResult(connection == $connection, isValid())
     then
-        System.out.println("Connection " + $connection.getId() + " is potentially valid for green cyclist arrow");
+        System.out.println("Für die Fahrlinie " + $connection.getId() + " ist ein VZ721 möglicherweise zulässig, sollten allerdings noch die Kriterien " +
+         " neben VwV-StVo zu § 37, XI., 1. a) - c) beurteilt werden");
 end

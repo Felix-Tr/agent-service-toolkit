@@ -37,9 +37,6 @@ public class Connection {
     private boolean goWithHalt;                    // Bit 9
     private boolean caution;                       // Bit 10
 
-    // Connection-specific overrides of lane permissions
-    private boolean allowsCyclists;
-
     /**
      * Creates a connection between ingress and egress lanes
      */
@@ -153,38 +150,45 @@ public class Connection {
      * Determines if this connection represents a right turn for cyclists
      */
     public boolean isCyclistRightTurn() {
-        return isRightTurn() && allowsCyclists &&
-                ingressLane != null && ingressLane.allowsCyclists();
+        return isRightTurn() && allowsCyclists();
     }
 
     /**
-     * Determines if this connection represents a left turn from opposite direction
-     * that would conflict with cyclists turning right
+     * Determines if this connection allows cyclists
+     * Calculates the intersection of allowed traffic types between ingress and egress lanes
+     * and considers any connection-specific overrides
      */
-    public boolean isConflictingLeftTurn(Connection cyclistRightTurn) {
-        // Must be a left turn
-        if (!isLeftTurn()) {
-            return false;
-        }
-
-        // Must have signal group that provides conflict-free left turn
-        if (signalGroup == null || !signalGroup.providesConflictFreeLeftTurn()) {
-            return false;
-        }
-
-        // Must have opposite ingress direction to the cyclist's lane
-        if (ingressLane == null || ingressLane.getDirection() == null ||
-                cyclistRightTurn == null || cyclistRightTurn.getIngressLane() == null ||
-                cyclistRightTurn.getIngressLane().getDirection() == null) {
-            return false;
-        }
-
-        if (ingressLane.getDirection().getOpposite() != cyclistRightTurn.getIngressLane().getDirection()) {
-            return false;
-        }
-
-        // Must target the same egress lane as cyclist's right turn or a conflicting path
-        return egressLane != null && egressLane == cyclistRightTurn.getEgressLane();
+    public boolean allowsCyclists() {
+        // Both ingress and egress lanes must allow cyclists
+        return ingressLane != null && ingressLane.allowsCyclists() && 
+               egressLane != null && egressLane.allowsCyclists();
+    }
+    
+    /**
+     * Determines if this connection allows pedestrians
+     * Calculates the intersection of allowed traffic types
+     */
+    public boolean allowsPedestrians() {
+        return ingressLane != null && ingressLane.allowsPedestrians() && 
+               egressLane != null && egressLane.allowsPedestrians();
+    }
+    
+    /**
+     * Determines if this connection allows individual motorized vehicles
+     * Calculates the intersection of allowed traffic types
+     */
+    public boolean allowsIndividualMotorizedVehicles() {
+        return ingressLane != null && ingressLane.allowsIndividualMotorizedVehicles() && 
+               egressLane != null && egressLane.allowsIndividualMotorizedVehicles();
+    }
+    
+    /**
+     * Determines if this connection allows public transport
+     * Calculates the intersection of allowed traffic types
+     */
+    public boolean allowsPublicTransport() {
+        return ingressLane != null && ingressLane.allowsPublicTransport() && 
+               egressLane != null && egressLane.allowsPublicTransport();
     }
 
     // Getters and Setters
@@ -281,14 +285,6 @@ public class Connection {
         }
     }
 
-    public boolean allowsCyclists() {
-        return allowsCyclists;
-    }
-
-    public void setAllowsCyclists(boolean allowsCyclists) {
-        this.allowsCyclists = allowsCyclists;
-    }
-
     public boolean isManeuverLeftTurnOnRedAllowed() {
         return maneuverLeftTurnOnRedAllowed;
     }
@@ -329,6 +325,56 @@ public class Connection {
      */
     public void setManeuverType(ManeuverType maneuverType) {
         this.maneuverType = maneuverType;
+    }
+
+    /**
+     * Gets the opposite direction of this connection's ingress lane
+     * This is a simple accessor method suitable for a domain model
+     */
+    public Direction getOppositeIngressDirection() {
+        if (ingressLane == null || ingressLane.getDirection() == null) {
+            return null;
+        }
+        return ingressLane.getDirection().getOpposite();
+    }
+
+    /**
+     * Checks if this connection targets the same egress lane as the specified connection
+     * This is a simple comparison method suitable for a domain model
+     */
+    public boolean sharesEgressLaneWith(Connection other) {
+        return egressLane != null && other != null && 
+               other.getEgressLane() != null && 
+               egressLane.equals(other.getEgressLane());
+    }
+
+    /**
+     * Checks if this connection comes from the opposite direction as the specified connection
+     * This is a simple comparison method suitable for a domain model
+     */
+    public boolean isFromOppositeDirectionOf(Connection other) {
+        if (ingressLane == null || ingressLane.getDirection() == null ||
+            other == null || other.getIngressLane() == null || 
+            other.getIngressLane().getDirection() == null) {
+            return false;
+        }
+        
+        return ingressLane.getDirection().getOpposite() == 
+               other.getIngressLane().getDirection();
+    }
+
+    /**
+     * Checks if this connection represents a left turn that would conflict with
+     * the given cyclist right turn. A left turn is conflicting if:
+     * 1. It is a left turn
+     * 2. It comes from the opposite direction of the cyclist right turn
+     * 3. It shares the same egress lane as the cyclist right turn
+     */
+    public boolean isConflictingLeftTurn(Connection cyclistRightTurn) {
+        return isLeftTurn() && 
+               this != cyclistRightTurn && 
+               isFromOppositeDirectionOf(cyclistRightTurn) && 
+               sharesEgressLaneWith(cyclistRightTurn);
     }
 
     @Override

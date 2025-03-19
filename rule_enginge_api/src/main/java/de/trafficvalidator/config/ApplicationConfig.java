@@ -4,8 +4,6 @@ import org.kie.api.KieServices;
 import org.kie.api.runtime.KieContainer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import javax.annotation.PreDestroy;
 
 /**
@@ -18,18 +16,11 @@ public class ApplicationConfig {
     
     /**
      * Creates and configures a KieContainer for Drools rule execution
-     * with proper handling of ClassLoader issues
      */
     @Bean
     public KieContainer kieContainer() {
-        // Get the KieServices instance
         KieServices kieServices = KieServices.Factory.get();
-        
-        // Create a new KieContainer with the current ClassLoader
-        // This approach uses a specific ClassLoader to avoid conflicts
-        ClassLoader classLoader = getClass().getClassLoader();
-        kieContainer = kieServices.getKieClasspathContainer(classLoader);
-        
+        kieContainer = kieServices.getKieClasspathContainer();
         return kieContainer;
     }
     

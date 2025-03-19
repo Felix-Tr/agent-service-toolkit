@@ -74,15 +74,6 @@ public class Intersection {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Finds all connections with conflict-free left turn signals that would
-     * conflict with the given cyclist right turn
-     */
-    public List<Connection> getConflictingLeftTurnConnections(Connection cyclistRightTurn) {
-        return connections.stream()
-                .filter(conn -> conn.isConflictingLeftTurn(cyclistRightTurn))
-                .collect(Collectors.toList());
-    }
 
     /**
      * Gets all ingress lanes by cardinal direction

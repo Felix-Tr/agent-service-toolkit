@@ -17,7 +17,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * REST controller for traffic light validation requests
@@ -70,7 +72,93 @@ public class ValidationController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(results);
         }
         
+        // For cyclist-arrow ruleset, add a summary of the relevant connections
+        if ("cyclist-arrow".equals(ruleset)) {
+            enrichCyclistArrowResponse(results);
+        }
+        
         return ResponseEntity.ok(results);
+    }
+    
+    /**
+     * Enriches the response with a cyclist-arrow-specific summary
+     * 
+     * @param results The validation results to enrich
+     */
+    private void enrichCyclistArrowResponse(Map<String, Object> results) {
+        // Extract statistics if available
+        if (results.containsKey("results") && results.get("results") instanceof Map) {
+            Map<String, Object> formattedResults = (Map<String, Object>) results.get("results");
+            
+            if (formattedResults.containsKey("statistics") && formattedResults.containsKey("approaches")) {
+                // Prepare a text summary for GPT agent consumption
+                StringBuilder summary = new StringBuilder();
+                Map<String, Object> statistics = (Map<String, Object>) formattedResults.get("statistics");
+                
+                // Add summary statistics
+                summary.append("Summary:\n");
+                summary.append("Total connections: ").append(statistics.get("totalConnections")).append("\n");
+                summary.append("Cyclist right turns: ").append(statistics.get("cyclistRightTurns")).append("\n");
+                summary.append("Valid cyclist right turns: ").append(statistics.get("validCyclistRightTurns")).append("\n");
+                summary.append("Invalid cyclist right turns: ").append(statistics.get("invalidCyclistRightTurns")).append("\n\n");
+                
+                // Add details by approach
+                summary.append("Results:\n\n");
+                
+                Map<String, List<Map<String, Object>>> approaches = 
+                        (Map<String, List<Map<String, Object>>>) formattedResults.get("approaches");
+                
+                for (Map.Entry<String, List<Map<String, Object>>> entry : approaches.entrySet()) {
+                    String approachDirection = entry.getKey();
+                    List<Map<String, Object>> connections = entry.getValue();
+                    
+                    summary.append("Approach from ").append(approachDirection).append(":\n");
+                    
+                    // Group connections by whether they're cyclist right turns
+                    List<Map<String, Object>> cyclistRightTurns = connections.stream()
+                            .filter(conn -> Boolean.TRUE.equals(conn.get("isCyclistRightTurn")))
+                            .collect(Collectors.toList());
+                    
+                    List<Map<String, Object>> otherConnections = connections.stream()
+                            .filter(conn -> !Boolean.TRUE.equals(conn.get("isCyclistRightTurn")))
+                            .collect(Collectors.toList());
+                    
+                    // Output cyclist right turns
+                    if (!cyclistRightTurns.isEmpty()) {
+                        summary.append("  Cyclist right turns:\n");
+                        for (Map<String, Object> conn : cyclistRightTurns) {
+                            String direction = (String) conn.get("direction");
+                            boolean isValid = (boolean) conn.get("valid");
+                            
+                            summary.append("  - Connection ").append(conn.get("connectionId"))
+                                  .append(": ").append(direction)
+                                  .append(" (").append(isValid ? "VALID" : "INVALID").append(")\n");
+                            
+                            // Add reasons if invalid
+                            if (!isValid && conn.containsKey("reasons")) {
+                                List<String> reasons = (List<String>) conn.get("reasons");
+                                for (String reason : reasons) {
+                                    summary.append("    * ").append(reason).append("\n");
+                                }
+                            }
+                        }
+                    } else {
+                        summary.append("  No cyclist right turns from this approach\n");
+                    }
+                    
+                    // Output other connections (brief summary)
+                    if (!otherConnections.isEmpty()) {
+                        summary.append("  Other connections: ").append(otherConnections.size())
+                               .append(" (not applicable for cyclist right turn signs)\n");
+                    }
+                    
+                    summary.append("\n");
+                }
+                
+                // Add this text summary to the results
+                results.put("textSummary", summary.toString());
+            }
+        }
     }
     
     /**

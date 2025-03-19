@@ -74,12 +74,18 @@ public class ValidationService {
             response.put("id", id);
             response.put("ruleset", ruleset);
             response.put("intersection", createIntersectionSummary(intersection));
-            response.put("results", formatValidationResults(results));
+            
+            // Format results based on ruleset
+            if ("cyclist-arrow".equals(ruleset)) {
+                response.put("results", formatGroupedValidationResults(results));
+            } else {
+                response.put("results", formatValidationResults(results));
+            }
 
             return response;
 
         } catch (Exception e) {
-            logger.error("Validation failed for intersection {}", id, e);
+            logger.error("Failed to validate intersection {}", id, e);
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("id", id);
             errorResponse.put("ruleset", ruleset);
@@ -430,5 +436,99 @@ public class ValidationService {
         }
 
         return formattedResults;
+    }
+    
+    /**
+     * Formats validation results grouped by approach directions for the cyclist-arrow ruleset
+     * This format is optimized for GPT agent consumption
+     *
+     * @param results The validation results
+     * @return A map containing grouped validation results by approaches
+     */
+    private Map<String, Object> formatGroupedValidationResults(List<ValidationResult> results) {
+        Map<String, Object> response = new HashMap<>();
+        
+        // Count validation stats
+        long totalConnections = results.size();
+        long cyclistRightTurns = results.stream()
+                .filter(r -> r.getConnection().isCyclistRightTurn())
+                .count();
+        long validConnections = results.stream()
+                .filter(r -> r.getConnection().isCyclistRightTurn() && r.isValid())
+                .count();
+        long invalidConnections = results.stream()
+                .filter(r -> r.getConnection().isCyclistRightTurn() && !r.isValid())
+                .count();
+        
+        // Add statistics to the response
+        Map<String, Object> statistics = new HashMap<>();
+        statistics.put("totalConnections", totalConnections);
+        statistics.put("cyclistRightTurns", cyclistRightTurns);
+        statistics.put("validCyclistRightTurns", validConnections);
+        statistics.put("invalidCyclistRightTurns", invalidConnections);
+        response.put("statistics", statistics);
+        
+        // Group results by approach direction
+        Map<String, List<Map<String, Object>>> approachGroups = new HashMap<>();
+        
+        for (ValidationResult result : results) {
+            Connection connection = result.getConnection();
+            Lane ingressLane = connection.getIngressLane();
+            
+            if (ingressLane != null && ingressLane.getDirection() != null) {
+                String approachDirection = ingressLane.getDirection().name();
+                
+                // Create approach group if it doesn't exist
+                if (!approachGroups.containsKey(approachDirection)) {
+                    approachGroups.put(approachDirection, new ArrayList<>());
+                }
+                
+                // Create connection details
+                Map<String, Object> connectionDetails = new HashMap<>();
+                connectionDetails.put("connectionId", connection.getId());
+                
+                // Add ingress and egress lanes
+                if (ingressLane != null && connection.getEgressLane() != null) {
+                    Direction ingressDir = ingressLane.getDirection();
+                    Direction egressDir = connection.getEgressLane().getDirection();
+                    
+                    if (ingressDir != null && egressDir != null) {
+                        connectionDetails.put("direction", ingressDir.name() + " → " + egressDir.name());
+                    }
+                }
+                
+                // Add maneuver type
+                String maneuverType = "";
+                if (connection.isStraight()) {
+                    maneuverType = "Straight";
+                } else if (connection.isLeftTurn()) {
+                    maneuverType = "Left Turn";
+                } else if (connection.isRightTurn()) {
+                    maneuverType = "Right Turn";
+                } else if (connection.isUTurn()) {
+                    maneuverType = "U-Turn";
+                }
+                connectionDetails.put("maneuver", maneuverType);
+                
+                // Add cyclist information
+                connectionDetails.put("isCyclistRightTurn", connection.isCyclistRightTurn());
+                
+                // Add validation result
+                connectionDetails.put("valid", result.isValid());
+                
+                // Add reasons for failure if invalid
+                if (!result.isValid()) {
+                    connectionDetails.put("reasons", result.getReasons());
+                }
+                
+                // Add to approach group
+                approachGroups.get(approachDirection).add(connectionDetails);
+            }
+        }
+        
+        // Add approach groups to response
+        response.put("approaches", approachGroups);
+        
+        return response;
     }
 }

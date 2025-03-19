@@ -298,16 +298,6 @@ public class MapemParser {
                     connection.setId(connectionId); // Use connectionID as the main ID
                 }
 
-                // Handle user class for cyclists if present
-                String userClassStr = getTagContent(connectionElement, "DSRC:userClass");
-                if (userClassStr != null && !userClassStr.isEmpty()) {
-                    int userClass = Integer.parseInt(userClassStr);
-                    // UserClass 0 is for all users
-                    if (userClass == 0) {
-                        connection.setAllowsCyclists(ingressLane.allowsCyclists() || egressLane.allowsCyclists());
-                    }
-                }
-
                 intersection.addConnection(connection);
                 
                 // Store connection in both maps for fast lookup

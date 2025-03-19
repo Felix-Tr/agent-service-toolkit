@@ -24,7 +24,7 @@ The specification for the file format is given in the pdf. What I want, is to cr
 
 A cross section defined by a mapem has a list of ingress and egress lanes from a direction and ingress lanes can connect to egress lanes. There is also a generic lane, which can receive and start a traffic stream. Traffic streams, meaning those connections are connected to a signal group. The MAPEM has a connection to an incrementing id with a <vt> tag, this is mapped from another file, the stg file to the signal group.
 
-The Signal Group is saved in the mentioned .stg file. 
+The Signal Group is saved in the mentioned .stg file.
 
 Here we need to extract the mapping from the id to the signal group name between:
 
@@ -34,15 +34,15 @@ Here we need to extract the mapping from the id to the signal group name between
 
 ...
 
- 1,      'FV01', 'FV', 1, '101101',
+1,      'FV01', 'FV', 1, '101101',
 
 ...
 
-#ZWISCHENZEITENMATRIX 
+#ZWISCHENZEITENMATRIX
 
 ...
 
-In this example I need the mapping id 1 (<vt> tag in xml) to FV01 (signal group) FV (signal group type).  It is important to get this mapping as the signal group type is a legal entity with respective rules that apply. 
+In this example I need the mapping id 1 (<vt> tag in xml) to FV01 (signal group) FV (signal group type).  It is important to get this mapping as the signal group type is a legal entity with respective rules that apply.
 
 ```
 
@@ -206,15 +206,15 @@ The signal groups are related to signal group types, they are now explained in g
 
 ### Signalgeber
 
-Klassische Ampeln haben Signalgeber mit 3-feldigen roter, gelber und grüner Vollscheibe, sie können aber auch 2 oder einfeldig sein. Ein oder mehrere Signalgeber bilden Signalgruppen, diese sind immer aus einer dreistelligen Nummer zusammengesetzt und befinden sich an Masten. Die ersten beiden Ziffern beschreiben (vorgenullt) die Signalgruppe, die letzte Ziffer die Nummer des Signalgebers innerhalb der Signalgruppe. 
+Klassische Ampeln haben Signalgeber mit 3-feldigen roter, gelber und grüner Vollscheibe, sie können aber auch 2 oder einfeldig sein. Ein oder mehrere Signalgeber bilden Signalgruppen, diese sind immer aus einer dreistelligen Nummer zusammengesetzt und befinden sich an Masten. Die ersten beiden Ziffern beschreiben (vorgenullt) die Signalgruppe, die letzte Ziffer die Nummer des Signalgebers innerhalb der Signalgruppe.
 
 Ein Mast ist als kleiner Kreis oder Punkt gekennzeichnet, je nach Typ, Signalgeber werden in unterschiedlicher Größe als kleine Dreiecke und mit einem Pfeil falls sie im Signalbild einen Pfeil beinhalten dargestellt, alternativ haben sie eine oder mehrere Vollscheiben. In einem der beigefügten Bilder sind die Symbole für die Signalgeber zu sehen, der zugehörige Name wird im folgenden der jeweilgen Kategorie zugeordnet. Die Kategorien unterscheiden sich wie folgt:
 
-- Individualverkehr (iV): 
+- Individualverkehr (iV):
 
 Dieser Typ bezeichnet Signale für den Individualverkehr. Der reservierte Bereich für die Signalgruppennummerierung ist 01 bis 19 (Es sind zur zweistelligen Darstellung führende Nullen zu verwenden). Die dritte Zahl gibt den Signalgeber dieser Gruppe an.
 
-Beispiel: 012 wird interpretiert als "fv012: Individualverkehr, Signalgruppe 1, Signalgeber 2". 
+Beispiel: 012 wird interpretiert als "fv012: Individualverkehr, Signalgruppe 1, Signalgeber 2".
 
 Signalgeber Symbol:
 
@@ -246,7 +246,7 @@ Signalgeber Symbol:
 
     - Radfahrer-Signalgeber 2-feldig (mit Legende)
 
-- Fußverkehrsignalgeber (fg): 
+- Fußverkehrsignalgeber (fg):
 
 Dieser Typ bezeichnet Signale für Fußgänger. Der Signalnummerbereich ist von 51 bis 69 und die dritte Zahl gibt den Signalgeber an. Aus Gründen der Barrierefreiheit haben viele Signalgeber für Fußgänger taktile und akustische Signale. Es gibt sogenannte "FG/RD-Kombisignale", diese sind in einem der beigefügten Bilder zu sehen.
 
@@ -268,7 +268,7 @@ Signalgeber Symbol:
 
 - ÖPNV:
 
-Für den ÖPNV gibt es eine Reihe weiterer Signalgeber, welche hier erstmal nicht von Bedeutung sind. 
+Für den ÖPNV gibt es eine Reihe weiterer Signalgeber, welche hier erstmal nicht von Bedeutung sind.
 
 alright. So the signal groups can have specific traffic in german "verkehrsrechtlichen Kontext", meaning it is relevant for proofing semantics. In this regard, I have the following legal semantic entities or properties that the domain object should represent:
 

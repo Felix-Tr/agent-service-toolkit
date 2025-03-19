@@ -20,7 +20,8 @@ public class SignalGroup {
         FV,  // Fahrverkehr (Individual vehicle traffic)
         DN,  // Diagonalgrünpfeile für Linksabbieger (Diagonal green arrow for left turn)
         RD,  // Radverkehr (Bicycle traffic)
-        FG   // Fußgänger (Pedestrian traffic)
+        FG,  // Fußgänger (Pedestrian traffic)
+        RA   // Rechtsabbiegepfeil (Right turn arrow signal)
     }
 
     public SignalGroup(int physicalSignalGroupId, String name, SignalGroupType type) {
@@ -59,6 +60,22 @@ public class SignalGroup {
     }
 
     /**
+     * Checks if this signal group is a right turn arrow
+     */
+    public boolean isAdditionalRightTurnArrow() {
+        return type == SignalGroupType.RA;
+    }
+
+    /**
+     * Checks if this signal group has directional arrows
+     * This includes diagonal left turn (DN), right turn arrows (RA), 
+     * and signal groups that exclusively control left turns
+     */
+    public boolean hasDirectionalArrows() {
+        return isDiagonalLeftTurn() || isAdditionalRightTurnArrow() || controlsOnlyLeftTurns();
+    }
+
+    /**
      * Checks if this signal group controls exclusively left turn connections
      */
     public boolean controlsOnlyLeftTurns() {
@@ -81,6 +98,23 @@ public class SignalGroup {
      */
     public boolean providesConflictFreeLeftTurn() {
         return isDiagonalLeftTurn() || controlsOnlyLeftTurns();
+    }
+
+    /**
+     * Checks if this signal group controls exclusively right turn connections
+     */
+    public boolean controlsOnlyRightTurns() {
+        if (controlledConnections.isEmpty()) {
+            return false;
+        }
+
+        for (Connection connection : controlledConnections) {
+            if (!connection.isRightTurn()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // Getters and Setters
