@@ -39,7 +39,7 @@ end
  * Rule to check for conflict-free left turn signals from opposing traffic
  * VwV-StVo zu § 37, XI., 1. a)
  */
-rule "CheckConflictFreeLeftTurnSignals"
+rule "CheckVollscheibeMitPfeil"
     when
         // The cyclist's right turn connection
         $rightTurn : Connection(isCyclistRightTurn())
@@ -65,7 +65,7 @@ end
  * Rule to check for diagonal green arrows for opposing left-turning traffic
  * VwV-StVo zu § 37, XI., 1. b)
  */
-rule "CheckDiagonalGreenArrows"
+rule "CheckDiagonalGruen"
     when
         // The cyclist's right turn connection
         $rightTurn : Connection(isCyclistRightTurn())
@@ -91,7 +91,7 @@ end
  * Rule to check for directional arrows in traffic lights
  * VwV-StVo zu § 37, XI., 1. c)
  */
-rule "CheckDirectionalArrowsInTrafficLights"
+rule "CheckRechtsabbiegehilfsignal"
     when
         $rightTurn : Connection(isCyclistRightTurn())
         $result : ValidationResult(connection == $rightTurn)

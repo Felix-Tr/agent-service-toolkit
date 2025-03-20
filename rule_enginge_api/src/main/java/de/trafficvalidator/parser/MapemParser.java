@@ -294,8 +294,21 @@ public class MapemParser {
                 String connectionIdStr = getTagContent(connectionElement, "DSRC:connectionID");
                 if (connectionIdStr != null && !connectionIdStr.isEmpty()) {
                     int connectionId = Integer.parseInt(connectionIdStr);
-                    connection.setConnectionId(connectionId);
-                    connection.setId(connectionId); // Use connectionID as the main ID
+                    
+                    // Ensure unique connection IDs for pedestrian crossings
+                    if (ingressLane.isCrosswalk() || egressLane.isCrosswalk()) {
+                        // Generate a unique ID for pedestrian crossings by adding 1000 to the original ID
+                        // This keeps the original ID association while making it unique
+                        int pedestrianConnectionId = 1000 + connectionId;
+                        connection.setConnectionId(pedestrianConnectionId);
+                        connection.setId(pedestrianConnectionId);
+                        logger.debug("Generated unique ID {} for pedestrian crossing connection (original ID: {})",
+                                pedestrianConnectionId, connectionId);
+                    } else {
+                        // For vehicle lanes, use the original connection ID
+                        connection.setConnectionId(connectionId);
+                        connection.setId(connectionId);
+                    }
                 }
 
                 intersection.addConnection(connection);

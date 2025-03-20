@@ -1,0 +1,255 @@
+{
+  "info": {
+    "name": "Traffic Validator Tests",
+    "description": "API tests for the Traffic Validator service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Test Cases",
+      "description": "Tests for specific intersections and their rule validations",
+      "item": [
+        {
+          "name": "Intersection 644 - CheckDiagonalGruen",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/validate/644",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "validate", "644"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has results\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('results');",
+                  "});",
+                  "",
+                  "// Function to find connection by ID",
+                  "function findConnectionById(results, connectionId) {",
+                  "    if (!results || !results.approaches) return null;",
+                  "    ",
+                  "    for (let approach in results.approaches) {",
+                  "        const connections = results.approaches[approach];",
+                  "        for (let connection of connections) {",
+                  "            if (connection.connectionId === connectionId) {",
+                  "                return connection;",
+                  "            }",
+                  "        }",
+                  "    }",
+                  "    return null;",
+                  "}",
+                  "",
+                  "// Function to check if a connection has a specific rule violation",
+                  "function hasRuleViolation(connection, ruleName) {",
+                  "    if (!connection || !connection.reasons) return false;",
+                  "    ",
+                  "    for (let reason of connection.reasons) {",
+                  "        if (reason.includes(ruleName) || ",
+                  "            (ruleName === \"CheckDiagonalGruen\" && reason.includes(\"VwV-StVo zu\") && reason.includes(\"37, XI., 1. b)\"))) {",
+                  "            return true;",
+                  "        }",
+                  "    }",
+                  "    return false;",
+                  "}",
+                  "",
+                  "// Test Connection 19 for CheckDiagonalGruen violation",
+                  "pm.test(\"Connection 19 should be invalid with CheckDiagonalGruen violation\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var results = jsonData.results;",
+                  "    var connection = findConnectionById(results, 19);",
+                  "    ",
+                  "    pm.expect(connection).to.not.be.null;",
+                  "    pm.expect(connection.valid).to.be.false;",
+                  "    pm.expect(hasRuleViolation(connection, \"CheckDiagonalGruen\")).to.be.true;",
+                  "});",
+                  "",
+                  "// Test Connection 4 for CheckDiagonalGruen violation",
+                  "pm.test(\"Connection 4 should be invalid with CheckDiagonalGruen violation\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var results = jsonData.results;",
+                  "    var connection = findConnectionById(results, 4);",
+                  "    ",
+                  "    pm.expect(connection).to.not.be.null;",
+                  "    pm.expect(connection.valid).to.be.false;",
+                  "    pm.expect(hasRuleViolation(connection, \"CheckDiagonalGruen\")).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Intersection 752 - Multiple Rule Violations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/validate/752",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "validate", "752"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has results\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('results');",
+                  "});",
+                  "",
+                  "// Function to find connection by ID",
+                  "function findConnectionById(results, connectionId) {",
+                  "    if (!results || !results.approaches) return null;",
+                  "    ",
+                  "    for (let approach in results.approaches) {",
+                  "        const connections = results.approaches[approach];",
+                  "        for (let connection of connections) {",
+                  "            if (connection.connectionId === connectionId) {",
+                  "                return connection;",
+                  "            }",
+                  "        }",
+                  "    }",
+                  "    return null;",
+                  "}",
+                  "",
+                  "// Function to check if a connection has a specific rule violation",
+                  "function hasRuleViolation(connection, ruleName) {",
+                  "    if (!connection || !connection.reasons) return false;",
+                  "    ",
+                  "    for (let reason of connection.reasons) {",
+                  "        if (reason.includes(ruleName) || ",
+                  "            (ruleName === \"CheckVollscheibeMitPfeil\" && reason.includes(\"VwV-StVo zu\") && reason.includes(\"37, XI., 1. a)\")) ||",
+                  "            (ruleName === \"CheckRechtsabbiegehilfsignal\" && reason.includes(\"VwV-StVo zu\") && reason.includes(\"37, XI., 1. c)\"))) {",
+                  "            return true;",
+                  "        }",
+                  "    }",
+                  "    return false;",
+                  "}",
+                  "",
+                  "// Test Connections 1, 2, 28 for CheckVollscheibeMitPfeil violation",
+                  "const vollscheibeConnections = [1, 2, 28];",
+                  "vollscheibeConnections.forEach(connectionId => {",
+                  "    pm.test(`Connection ${connectionId} should be invalid with CheckVollscheibeMitPfeil violation`, function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        var results = jsonData.results;",
+                  "        var connection = findConnectionById(results, connectionId);",
+                  "        ",
+                  "        pm.expect(connection).to.not.be.null;",
+                  "        pm.expect(connection.valid).to.be.false;",
+                  "        pm.expect(hasRuleViolation(connection, \"CheckVollscheibeMitPfeil\")).to.be.true;",
+                  "    });",
+                  "});",
+                  "",
+                  "// Test Connection 27 for CheckRechtsabbiegehilfsignal violation",
+                  "pm.test(\"Connection 27 should be invalid with CheckRechtsabbiegehilfsignal violation\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var results = jsonData.results;",
+                  "    var connection = findConnectionById(results, 27);",
+                  "    ",
+                  "    pm.expect(connection).to.not.be.null;",
+                  "    pm.expect(connection.valid).to.be.false;",
+                  "    pm.expect(hasRuleViolation(connection, \"CheckRechtsabbiegehilfsignal\")).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Intersection 1040 - CheckVollscheibeMitPfeil",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/validate/1040",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "validate", "1040"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has results\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('results');",
+                  "});",
+                  "",
+                  "// Function to find connection by ID",
+                  "function findConnectionById(results, connectionId) {",
+                  "    if (!results || !results.approaches) return null;",
+                  "    ",
+                  "    for (let approach in results.approaches) {",
+                  "        const connections = results.approaches[approach];",
+                  "        for (let connection of connections) {",
+                  "            if (connection.connectionId === connectionId) {",
+                  "                return connection;",
+                  "            }",
+                  "        }",
+                  "    }",
+                  "    return null;",
+                  "}",
+                  "",
+                  "// Function to check if a connection has a specific rule violation",
+                  "function hasRuleViolation(connection, ruleName) {",
+                  "    if (!connection || !connection.reasons) return false;",
+                  "    ",
+                  "    for (let reason of connection.reasons) {",
+                  "        if (reason.includes(ruleName) || ",
+                  "            (ruleName === \"CheckVollscheibeMitPfeil\" && reason.includes(\"VwV-StVo zu\") && reason.includes(\"37, XI., 1. a)\"))) {",
+                  "            return true;",
+                  "        }",
+                  "    }",
+                  "    return false;",
+                  "}",
+                  "",
+                  "// Test Connections 25, 26, 33 for CheckVollscheibeMitPfeil violation",
+                  "const connectionIds = [25, 26, 33];",
+                  "connectionIds.forEach(connectionId => {",
+                  "    pm.test(`Connection ${connectionId} should be invalid with CheckVollscheibeMitPfeil violation`, function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        var results = jsonData.results;",
+                  "        var connection = findConnectionById(results, connectionId);",
+                  "        ",
+                  "        pm.expect(connection).to.not.be.null;",
+                  "        pm.expect(connection.valid).to.be.false;",
+                  "        pm.expect(hasRuleViolation(connection, \"CheckVollscheibeMitPfeil\")).to.be.true;",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    }
+  ]
+} 
