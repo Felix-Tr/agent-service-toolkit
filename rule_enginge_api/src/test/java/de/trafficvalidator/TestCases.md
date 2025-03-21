@@ -24,7 +24,7 @@ Schwerlastverkehr in HR wäre zusätzliches Kriterium und würde 19, 4 plus 3, 1
 
 ### 752
 
-CheckVollscheibeMitPfeil: 1,2, 28
+CheckVollscheibeMitPfeil: 34, 33, 28
 CheckRechtsabbiegehilfsignal: 27
 
 ##### Unsicherheit:

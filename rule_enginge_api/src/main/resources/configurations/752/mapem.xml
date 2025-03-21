@@ -1914,7 +1914,7 @@
                   <DSRC:ingressApproach>3</DSRC:ingressApproach>
                   <DSRC:laneAttributes>
                      <DSRC:directionalUse>10</DSRC:directionalUse>
-                     <DSRC:sharedWith>0000000000</DSRC:sharedWith>
+                     <DSRC:sharedWith>0001000000</DSRC:sharedWith>
                      <DSRC:laneType>
                         <DSRC:vehicle>00000000</DSRC:vehicle>
                      </DSRC:laneType>
