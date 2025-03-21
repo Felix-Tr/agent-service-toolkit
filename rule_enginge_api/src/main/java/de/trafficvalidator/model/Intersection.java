@@ -26,7 +26,7 @@ public class Intersection {
 
     // Collections of elements
     private Map<Integer, Lane> lanes = new HashMap<>();
-    private Map<Integer, SignalGroup> physicalSignalGroups = new HashMap<>(); // vt
+    private Map<Integer, SignalGroup> physicalSignalGroups = new HashMap<>(); // Physical signal groups (VT)
     private List<Connection> connections = new ArrayList<>();
     private List<TrafficStream> trafficStreams = new ArrayList<>();
 
@@ -106,11 +106,23 @@ public class Intersection {
     }
 
     /**
-     * Gets all connections controlled by a specific physical signal group ID (vt)
+     * Gets all connections controlled by a specific physical signal group ID (VT)
+     * @param physicalSignalGroupId The physical signal group ID
+     * @return List of connections controlled by the specified physical signal group
      */
     public List<Connection> getConnectionsByPhysicalSignalGroupId(int physicalSignalGroupId) {
         return connections.stream()
-                .filter(conn -> conn.getPhysicalSignalGroupId() == physicalSignalGroupId)
+                .filter(conn -> conn.hasPhysicalSignalGroupId(physicalSignalGroupId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets all connections that have no physical signal groups assigned
+     * @return List of connections without physical signal groups
+     */
+    public List<Connection> getConnectionsWithoutSignalGroups() {
+        return connections.stream()
+                .filter(conn -> !conn.hasSignalGroups())
                 .collect(Collectors.toList());
     }
 
@@ -142,6 +154,17 @@ public class Intersection {
                 physicalGroup.getType() == SignalGroup.SignalGroupType.DN;
 
         return allLeftTurns || isDiagonalLeftTurn;
+    }
+
+    /**
+     * Gets all connections with a specific logical signal group ID
+     * @param logicalSignalGroupId The logical signal group ID
+     * @return List of connections with the specified logical signal group ID
+     */
+    public List<Connection> getConnectionsByLogicalSignalGroupId(int logicalSignalGroupId) {
+        return connections.stream()
+                .filter(conn -> conn.getLogicalSignalGroupId() == logicalSignalGroupId)
+                .collect(Collectors.toList());
     }
 
     // Getters and Setters
@@ -206,35 +229,52 @@ public class Intersection {
         return lanes;
     }
 
+    /**
+     * Gets a physical signal group by ID (VT)
+     * @param physicalSignalGroupId The physical signal group ID
+     * @return The physical signal group or null if not found
+     */
     public SignalGroup getPhysicalSignalGroup(int physicalSignalGroupId) {
         return physicalSignalGroups.get(physicalSignalGroupId);
     }
 
+    /**
+     * Adds a physical signal group to the intersection
+     * @param signalGroup The physical signal group to add
+     */
     public void addPhysicalSignalGroup(SignalGroup signalGroup) {
         this.physicalSignalGroups.put(signalGroup.getPhysicalSignalGroupId(), signalGroup);
     }
 
     /**
-     * Gets a signal group by ID (physical only)
+     * Gets a physical signal group by ID (VT)
+     * @param id The physical signal group ID
+     * @return The physical signal group or null if not found
      */
     public SignalGroup getSignalGroup(int id) {
         return physicalSignalGroups.get(id);
     }
 
     /**
-     * Adds a signal group to the physical signal groups map
+     * Adds a physical signal group to the intersection
+     * @param signalGroup The physical signal group to add
      */
     public void addSignalGroup(SignalGroup signalGroup) {
         physicalSignalGroups.put(signalGroup.getPhysicalSignalGroupId(), signalGroup);
     }
 
     /**
-     * Gets all signal groups (physical only)
+     * Gets all physical signal groups (VT)
+     * @return Map of physical signal groups by ID
      */
     public Map<Integer, SignalGroup> getSignalGroups() {
         return physicalSignalGroups;
     }
 
+    /**
+     * Gets all physical signal groups (VT)
+     * @return Map of physical signal groups by ID
+     */
     public Map<Integer, SignalGroup> getPhysicalSignalGroups() {
         return physicalSignalGroups;
     }

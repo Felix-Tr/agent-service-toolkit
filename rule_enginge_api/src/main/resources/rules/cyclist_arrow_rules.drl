@@ -45,13 +45,11 @@ rule "CheckVollscheibeMitPfeil"
         $rightTurn : Connection(isCyclistRightTurn())
         $result : ValidationResult(connection == $rightTurn)
         
-        // Find any left turn from opposite direction
+        // Find any left turn from opposite direction using the connection's egress lane
         $leftTurn : Connection(
             isLeftTurn() == true, 
-            this != $rightTurn,
-            isFromOppositeDirectionOf($rightTurn) == true,
-            sharesEgressLaneWith($rightTurn) == true
-        )
+            this != $rightTurn
+        ) from $rightTurn.getEgressLane().getIncomingConnections()
         
         // Check if it has a signal group that only controls left turns
         $signalGroup : SignalGroup(
@@ -71,13 +69,13 @@ rule "CheckDiagonalGruen"
         $rightTurn : Connection(isCyclistRightTurn())
         $result : ValidationResult(connection == $rightTurn)
         
-        // Find any left turn from opposite direction
+        // Find any left turn from opposite direction using the connection's egress lane
         $leftTurn : Connection(
             isLeftTurn() == true, 
             this != $rightTurn,
             isFromOppositeDirectionOf($rightTurn) == true,
             sharesEgressLaneWith($rightTurn) == true
-        )
+        ) from $rightTurn.getEgressLane().getIncomingConnections()
         
         // Check if it has a diagonal green arrow signal group
         $signalGroup : SignalGroup(

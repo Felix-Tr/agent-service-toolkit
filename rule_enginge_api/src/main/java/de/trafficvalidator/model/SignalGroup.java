@@ -6,6 +6,10 @@ import java.util.List;
 /**
  * Represents a physical signal group from the STG file (German "Signalgruppe").
  * A physical signal group controls one or more connections at an intersection.
+ * 
+ * Note: This represents a PHYSICAL signal group (VT in MAPEM XML), not a logical DSRC:signalGroup.
+ * In German traffic engineering, a physical signal group ("Signalgruppe") corresponds to one or 
+ * more actual signal heads ("Signalgeber") that control traffic movements at an intersection.
  */
 public class SignalGroup {
     private int physicalSignalGroupId;         // Physical signal group ID (vt) from STG file
@@ -147,9 +151,23 @@ public class SignalGroup {
         return controlledConnections;
     }
 
+    /**
+     * Adds a controlled connection to this physical signal group
+     * @param connection The connection controlled by this physical signal group
+     */
     public void addControlledConnection(Connection connection) {
-        this.controlledConnections.add(connection);
-        connection.setSignalGroup(this);
+        if (connection != null && !controlledConnections.contains(connection)) {
+            this.controlledConnections.add(connection);
+            connection.addSignalGroup(this);
+        }
+    }
+
+    /**
+     * Returns the ID of this physical signal group (VT)
+     * @return The physical signal group ID
+     */
+    public int getId() {
+        return physicalSignalGroupId;
     }
 
     @Override

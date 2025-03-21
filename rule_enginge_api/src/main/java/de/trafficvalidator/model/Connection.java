@@ -1,10 +1,21 @@
 package de.trafficvalidator.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Represents a connection between an ingress and egress lane.
  * Connections are controlled by signal groups and define possible maneuvers.
  */
 public class Connection {
+    public int getLogicalSignalGroupId() {
+        return logicalSignalGroupId;
+    }
+
+    public void setLogicalSignalGroupId(int logicalSignalGroupId) {
+        this.logicalSignalGroupId = logicalSignalGroupId;
+    }
+
     /**
      * Enum representing the type of maneuver for this connection
      */
@@ -19,9 +30,12 @@ public class Connection {
     private int id;
     private Lane ingressLane;
     private Lane egressLane;
-    private SignalGroup signalGroup;             // Reference to physical signal group
+    private SignalGroup signalGroup;             // Reference to physical signal group (German "Signalgruppe", VT)
+    private List<SignalGroup> signalGroups = new ArrayList<>();  // Multiple physical signal groups
     private int connectionId;                    // From MAPEM (connectionID)
-    private int physicalSignalGroupId;           // VT from TrafficStream
+    private int physicalSignalGroupId;           // VT from TrafficStream (physical signal group)
+    private int logicalSignalGroupId;           // VT from TrafficStream (physical signal group)
+    private List<Integer> physicalSignalGroupIds = new ArrayList<>();  // Multiple physical signal group IDs (VT)
     private ManeuverType maneuverType = ManeuverType.UNKNOWN; // Type of maneuver
 
     // Maneuver types decoded from DSRC:maneuver binary string
@@ -217,10 +231,18 @@ public class Connection {
         this.egressLane = egressLane;
     }
 
+    /**
+     * Gets the primary physical signal group (German "Signalgruppe") controlling this connection
+     * @return The primary physical signal group (VT)
+     */
     public SignalGroup getSignalGroup() {
         return signalGroup;
     }
 
+    /**
+     * Sets the primary physical signal group (German "Signalgruppe") controlling this connection
+     * @param signalGroup The physical signal group (VT)
+     */
     public void setSignalGroup(SignalGroup signalGroup) {
         this.signalGroup = signalGroup;
     }
@@ -233,10 +255,16 @@ public class Connection {
         this.connectionId = connectionId;
     }
 
+    /**
+     * Gets the primary physical signal group ID (VT) for this connection
+     */
     public int getPhysicalSignalGroupId() {
         return physicalSignalGroupId;
     }
 
+    /**
+     * Sets the primary physical signal group ID (VT) for this connection
+     */
     public void setPhysicalSignalGroupId(int physicalSignalGroupId) {
         this.physicalSignalGroupId = physicalSignalGroupId;
     }
@@ -377,29 +405,96 @@ public class Connection {
                sharesEgressLaneWith(cyclistRightTurn);
     }
 
+    /**
+     * Adds a physical signal group ID (VT) to this connection
+     * @param physicalSignalGroupId The physical signal group ID from the MAPEM file
+     */
+    public void addPhysicalSignalGroupId(int physicalSignalGroupId) {
+        // Set the primary one for backward compatibility
+        if (this.physicalSignalGroupId == 0) {
+            this.physicalSignalGroupId = physicalSignalGroupId;
+        }
+        
+        // Add to list if not already present
+        if (!physicalSignalGroupIds.contains(physicalSignalGroupId)) {
+            physicalSignalGroupIds.add(physicalSignalGroupId);
+        }
+    }
+
+    /**
+     * Gets the list of all physical signal group IDs (VT) for this connection
+     * @return List of physical signal group IDs
+     */
+    public List<Integer> getPhysicalSignalGroupIds() {
+        return new ArrayList<>(physicalSignalGroupIds);
+    }
+
+    /**
+     * Returns whether this connection has a specific physical signal group ID (VT)
+     * @param physicalSignalGroupId The physical signal group ID to check
+     * @return true if this connection has the specified physical signal group ID
+     */
+    public boolean hasPhysicalSignalGroupId(int physicalSignalGroupId) {
+        return this.physicalSignalGroupIds.contains(physicalSignalGroupId);
+    }
+
+    /**
+     * Adds a physical signal group (German "Signalgruppe") to this connection
+     * @param signalGroup The physical signal group to add
+     */
+    public void addSignalGroup(SignalGroup signalGroup) {
+        // Set the primary one for backward compatibility
+        if (this.signalGroup == null) {
+            this.signalGroup = signalGroup;
+        }
+        
+        // Add to list if not already present and not null
+        if (signalGroup != null && !signalGroups.contains(signalGroup)) {
+            signalGroups.add(signalGroup);
+        }
+    }
+
+    /**
+     * Gets all physical signal groups (German "Signalgruppe") for this connection
+     * @return List of physical signal groups
+     */
+    public List<SignalGroup> getSignalGroups() {
+        return new ArrayList<>(signalGroups);
+    }
+
+    /**
+     * Checks if this connection has any signal groups assigned
+     * @return true if the connection has at least one signal group, false otherwise
+     */
+    public boolean hasSignalGroups() {
+        return signalGroups != null && !signalGroups.isEmpty();
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Connection{id=").append(id);
-
-        if (ingressLane != null) {
-            sb.append(", ingress=").append(ingressLane.getId());
+        sb.append("Connection{id=").append(id)
+          .append(", connectionId=").append(connectionId);
+        
+        if (ingressLane != null && egressLane != null) {
+            sb.append(", lanes=").append(ingressLane.getId())
+              .append("->").append(egressLane.getId());
         }
-
-        if (egressLane != null) {
-            sb.append(", egress=").append(egressLane.getId());
+        
+        if (!signalGroups.isEmpty()) {
+            sb.append(", signalGroups=[");
+            for (int i = 0; i < signalGroups.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(signalGroups.get(i).getPhysicalSignalGroupId());
+            }
+            sb.append("]");
         }
-
-        sb.append(", physicalSG=").append(physicalSignalGroupId);
-        sb.append(", maneuverType=").append(maneuverType);
-
-        sb.append(", maneuvers=[");
-        if (maneuverStraightAllowed) sb.append("Straight ");
-        if (maneuverLeftAllowed) sb.append("Left ");
-        if (maneuverRightAllowed) sb.append("Right ");
-        if (maneuverUTurnAllowed) sb.append("UTurn ");
-        sb.append("]");
-
-        return sb.toString() + "}";
+        
+        if (maneuverType != ManeuverType.UNKNOWN) {
+            sb.append(", maneuver=").append(maneuverType);
+        }
+        
+        sb.append('}');
+        return sb.toString();
     }
 }

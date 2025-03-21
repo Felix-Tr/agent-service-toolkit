@@ -1,5 +1,8 @@
 package de.trafficvalidator.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Represents a traffic stream from the MAPEM file.
  * A traffic stream links lanes through a connection and associates them with
@@ -14,7 +17,8 @@ public class TrafficStream {
 
     private Lane refLane;                // Resolved reference to ingress lane
     private Lane connectToLane;          // Resolved reference to egress lane
-    private Connection connection;       // Resolved reference to connection
+    private Connection connection;       // Resolved reference to connection (for backward compatibility)
+    private List<Connection> connections = new ArrayList<>(); // List of all connections for this stream
     private SignalGroup signalGroup;     // Resolved reference to physical signal group
 
     public TrafficStream() {
@@ -22,13 +26,42 @@ public class TrafficStream {
 
     /**
      * Links this traffic stream to the appropriate connection
+     * @deprecated Use addConnection instead
      */
+    @Deprecated
     public void linkToConnection(Connection connection) {
         this.connection = connection;
-
+        
+        // Also add to the list for new implementation
         if (connection != null) {
-            connection.setPhysicalSignalGroupId(physicalSignalGroupId);
+            addConnection(connection);
         }
+    }
+
+    /**
+     * Adds a connection to this traffic stream
+     * @param connection The connection to add
+     */
+    public void addConnection(Connection connection) {
+        if (connection != null && !connections.contains(connection)) {
+            connections.add(connection);
+            
+            // For backward compatibility
+            if (this.connection == null) {
+                this.connection = connection;
+            }
+            
+            // Apply physical signal group ID to the connection
+            connection.addPhysicalSignalGroupId(physicalSignalGroupId);
+        }
+    }
+
+    /**
+     * Gets all connections associated with this traffic stream
+     * @return List of connections
+     */
+    public List<Connection> getConnections() {
+        return new ArrayList<>(connections);
     }
 
     /**
@@ -37,8 +70,16 @@ public class TrafficStream {
     public void linkToSignalGroup(SignalGroup signalGroup) {
         this.signalGroup = signalGroup;
 
-        if (connection != null && signalGroup != null) {
-            signalGroup.addControlledConnection(connection);
+        if (signalGroup != null) {
+            // Link all connections to this signal group
+            for (Connection conn : connections) {
+                signalGroup.addControlledConnection(conn);
+            }
+            
+            // For backward compatibility
+            if (connection != null) {
+                signalGroup.addControlledConnection(connection);
+            }
         }
     }
 
@@ -100,12 +141,27 @@ public class TrafficStream {
         this.connectToLane = connectToLane;
     }
 
+    /**
+     * @return The primary connection (for backward compatibility)
+     * @deprecated Use getConnections() instead to get all connections
+     */
+    @Deprecated
     public Connection getConnection() {
         return connection;
     }
 
+    /**
+     * @param connection The connection to set as primary
+     * @deprecated Use addConnection() instead
+     */
+    @Deprecated
     public void setConnection(Connection connection) {
         this.connection = connection;
+        
+        // Also add to the list for new implementation
+        if (connection != null) {
+            addConnection(connection);
+        }
     }
 
     public SignalGroup getSignalGroup() {
@@ -127,6 +183,7 @@ public class TrafficStream {
                 ", refConnectTo=" + refConnectTo +
                 ", physicalSignalGroupId=" + physicalSignalGroupId +
                 ", isPrimary=" + isPrimary +
+                ", connections=" + connections.size() +
                 '}';
     }
 }

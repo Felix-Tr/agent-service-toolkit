@@ -11,10 +11,13 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.File;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Parser for MAPEM XML files that extracts intersection data.
@@ -27,20 +30,10 @@ public class MapemParser {
     private final Map<String, Connection> connectionKeyMap = new HashMap<>();
     // Map to store physical signal groups by ID
     private Map<Integer, SignalGroup> physicalSignalGroups = new HashMap<>();
-
-    /**
-     * Parses a MAPEM XML file and returns an Intersection object
-     */
-    public Intersection parse(File mapemFile) throws Exception {
-        logger.info("Parsing MAPEM file: {}", mapemFile.getName());
-
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        Document document = builder.parse(mapemFile);
-        document.getDocumentElement().normalize();
-
-        return parseDocument(document);
-    }
+    // Set to store ingress lane IDs that have traffic streams
+    private Set<Integer> ingressLanesWithTrafficStreams = new HashSet<>();
+    // Map to store signal group types from STG file
+    private Map<Integer, SignalGroup> stgSignalGroups = new HashMap<>();
 
     /**
      * Parses a MAPEM XML from input stream
@@ -49,6 +42,9 @@ public class MapemParser {
         logger.info("Parsing MAPEM from input stream");
 
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
         DocumentBuilder builder = factory.newDocumentBuilder();
         Document document = builder.parse(mapemStream);
         document.getDocumentElement().normalize();
@@ -60,27 +56,61 @@ public class MapemParser {
      * Internal method to parse the XML document
      */
     private Intersection parseDocument(Document document) {
-        // Parse intersection information
-        parseIntersection(document);
+        try {
+            // Parse intersection information
+            parseIntersection(document);
 
-        // Parse lanes
-        parseLanes(document);
+            // Parse lanes
+            parseLanes(document);
 
-        // Parse connections
-        parseConnections(document);
+            // Parse connections
+            parseConnections(document);
 
-        // Parse traffic streams
-        parseTrafficStreams(document);
+            // Parse traffic streams
+            parseTrafficStreamsAddPhysicalSignalGroups(document);
 
-        // Establish all physical signal group linkages
-        establishSignalGroupLinkages();
+            // Validate that all ingress lanes have signal groups (not all connections)
+            validateIngressLaneSignalGroups();
 
-        // Calculate directions for lanes
-        DirectionCalculator calculator = new DirectionCalculator(intersection);
-        calculator.calculateDirectionsForApproaches();
+            // Calculate directions for lanes
+            DirectionCalculator calculator = new DirectionCalculator(intersection);
+            calculator.calculateDirectionsForApproaches();
 
-        logger.info("Parsed intersection: {}", intersection);
-        return intersection;
+            logger.info("Parsed intersection: {}", intersection);
+            return intersection;
+        } catch (Exception e) {
+            logger.error("Error parsing MAPEM document: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to parse MAPEM document: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Updates signal group types from STG data
+     */
+    private void updateSignalGroupTypesFromStg() {
+        if (stgSignalGroups.isEmpty()) {
+            logger.warn("No STG signal group data available, using fallback type determination");
+            return;
+        }
+
+        for (SignalGroup signalGroup : intersection.getPhysicalSignalGroups().values()) {
+            int id = signalGroup.getPhysicalSignalGroupId();
+            SignalGroup stgSignalGroup = stgSignalGroups.get(id);
+            
+            if (stgSignalGroup != null) {
+                // Update type and name from STG data
+                signalGroup.setType(stgSignalGroup.getType());
+                signalGroup.setName(stgSignalGroup.getName());
+                logger.debug("Updated signal group {} type to {} from STG data", 
+                    id, stgSignalGroup.getType());
+            } else {
+                // If not found in STG, use fallback determination
+                SignalGroup.SignalGroupType fallbackType = determineSignalGroupTypeFallback(id);
+                signalGroup.setType(fallbackType);
+                logger.warn("Signal group {} not found in STG data, using fallback type {}", 
+                    id, fallbackType);
+            }
+        }
     }
 
     /**
@@ -194,9 +224,6 @@ public class MapemParser {
             return;
         }
 
-        // The sharedWith attribute is a binary string where each bit represents a permission
-        // Example: "0001000100" means individualMotorizedVehicleTraffic (bit 3) and cyclistVehicleTraffic (bit 7)
-
         // Remove any spaces or underscores
         sharedWith = sharedWith.replaceAll("[\\s_]", "");
 
@@ -287,7 +314,7 @@ public class MapemParser {
                 // Create connection
                 Connection connection = new Connection(ingressLane, egressLane);
 
-                // Set maneuvers from binary string (focus on first 4 bits as per specification)
+                // Set maneuvers from binary string
                 setManeuversFromBinary(connection, maneuvers);
 
                 // Set connection ID
@@ -298,7 +325,6 @@ public class MapemParser {
                     // Ensure unique connection IDs for pedestrian crossings
                     if (ingressLane.isCrosswalk() || egressLane.isCrosswalk()) {
                         // Generate a unique ID for pedestrian crossings by adding 1000 to the original ID
-                        // This keeps the original ID association while making it unique
                         int pedestrianConnectionId = 1000 + connectionId;
                         connection.setConnectionId(pedestrianConnectionId);
                         connection.setId(pedestrianConnectionId);
@@ -308,7 +334,11 @@ public class MapemParser {
                         // For vehicle lanes, use the original connection ID
                         connection.setConnectionId(connectionId);
                         connection.setId(connectionId);
+                        int logicalSignalGroupId = Integer.parseInt(getTagContent(connectionElement, "DSRC:signalGroup"));
+                        connection.setLogicalSignalGroupId(logicalSignalGroupId);
                     }
+                } else {
+                    throw new RuntimeException("MAP corrupted as it has connection with missing ID");
                 }
 
                 intersection.addConnection(connection);
@@ -327,7 +357,6 @@ public class MapemParser {
 
     /**
      * Sets maneuver flags from binary string
-     * Focuses on the first 4 bits as specified in the DSRC:maneuver field documentation
      */
     private void setManeuversFromBinary(Connection connection, String maneuvers) {
         if (maneuvers == null || maneuvers.isEmpty()) {
@@ -342,67 +371,69 @@ public class MapemParser {
      * Parses traffic streams from the MAPEM file
      * Traffic streams contain physical signal group information (<vt> tags)
      */
-    private void parseTrafficStreams(Document document) {
+    private void parseTrafficStreamsAddPhysicalSignalGroups(Document document) {
         NodeList trafficStreamNodes = document.getElementsByTagName("MapExtension:TrafficStreamConfigData");
         logger.info("Found {} traffic streams", trafficStreamNodes.getLength());
 
         for (int i = 0; i < trafficStreamNodes.getLength(); i++) {
             Element streamElement = (Element) trafficStreamNodes.item(i);
 
-            TrafficStream trafficStream = new TrafficStream();
+            try {
+                TrafficStream trafficStream = new TrafficStream();
 
-            // Parse reference lane and connection
-            int refLaneId = Integer.parseInt(getTagContent(streamElement, "MapExtension:refLaneId"));
-            int refConnectTo = Integer.parseInt(getTagContent(streamElement, "MapExtension:refConnectTo"));
+                // Parse reference lane and connection
+                int refLaneId = Integer.parseInt(getTagContent(streamElement, "MapExtension:refLaneId"));
+                int refConnectTo = Integer.parseInt(getTagContent(streamElement, "MapExtension:refConnectTo"));
 
-            trafficStream.setRefLaneId(refLaneId);
-            trafficStream.setRefConnectTo(refConnectTo);
+                trafficStream.setRefLaneId(refLaneId);
+                trafficStream.setRefConnectTo(refConnectTo);
 
-            // Set lane references
-            Lane refLane = intersection.getLane(refLaneId);
-            Lane connectToLane = intersection.getLane(refConnectTo);
+                // Add this lane to our set of ingress lanes with traffic streams
+                ingressLanesWithTrafficStreams.add(refLaneId);
 
-            if (refLane != null && connectToLane != null) {
-                trafficStream.setRefLane(refLane);
-                trafficStream.setConnectToLane(connectToLane);
-            } else {
-                logger.warn("Could not find lanes for traffic stream: {} -> {}", refLaneId, refConnectTo);
-                continue; // Skip this traffic stream if lanes not found
-            }
+                // Set lane references
+                Lane refLane = intersection.getLane(refLaneId);
+                Lane connectToLane = intersection.getLane(refConnectTo);
 
-            // Parse intersection part
-            String intersectionPart = getTagContent(streamElement, "MapExtension:intersectionPart");
-            if (intersectionPart != null && !intersectionPart.isEmpty()) {
-                trafficStream.setIntersectionPart(Integer.parseInt(intersectionPart));
-            }
-
-            // Parse signal groups - focus only on the <vt> IDs (physical signal groups)
-            int physicalSignalGroupId = 0;
-            boolean isPrimary = false;
-            
-            Element signalGroupsElement = (Element) streamElement.getElementsByTagName("MapExtension:signalGroups").item(0);
-            if (signalGroupsElement != null) {
-                // Check for primary physical signal groups
-                Element primaryElement = (Element) signalGroupsElement.getElementsByTagName("MapExtension:primary").item(0);
-                if (primaryElement != null) {
-                    String physicalSignalGroupIdStr = getTagContent(primaryElement, "MapExtension:vt");
-                    if (physicalSignalGroupIdStr != null && !physicalSignalGroupIdStr.isEmpty()) {
-                        physicalSignalGroupId = Integer.parseInt(physicalSignalGroupIdStr);
-                        isPrimary = true;
-                    }
+                if (refLane != null && connectToLane != null) {
+                    trafficStream.setRefLane(refLane);
+                    trafficStream.setConnectToLane(connectToLane);
+                } else {
+                    throw new RuntimeException(String.format("Could not find lanes for traffic stream: %d -> %d", refLaneId, refConnectTo));
                 }
 
-                // Check for secondary physical signal groups (if no primary found)
-                if (physicalSignalGroupId == 0) {
-                    Element secondaryElement = (Element) signalGroupsElement.getElementsByTagName("MapExtension:secondary").item(0);
-                    if (secondaryElement != null) {
-                        String physicalSignalGroupIdStr = getTagContent(secondaryElement, "MapExtension:vt");
-                        if (physicalSignalGroupIdStr != null && !physicalSignalGroupIdStr.isEmpty()) {
-                            physicalSignalGroupId = Integer.parseInt(physicalSignalGroupIdStr);
-                            isPrimary = false;
-                        }
-                    }
+                // Parse intersection part
+                String intersectionPart = getTagContent(streamElement, "MapExtension:intersectionPart");
+                if (intersectionPart != null && !intersectionPart.isEmpty()) {
+                    trafficStream.setIntersectionPart(Integer.parseInt(intersectionPart));
                 }
+
+                // Parse signal groups - focus on both primary and secondary <vt> IDs and map to physicalsignalgroups for all connections
+                parseSignalGroupsForTrafficStreamAndAddToConnection(streamElement, trafficStream, refLaneId, refConnectTo);
+
+                intersection.addTrafficStream(trafficStream);
+                logger.debug("Added traffic stream: {}", trafficStream);
+            } catch (Exception e) {
+                throw new RuntimeException("Error parsing traffic stream element: {}", e);
+            }
+        }
+    }
+
+    /**
+     * Parses signal groups for a traffic stream
+     */
+    private void parseSignalGroupsForTrafficStreamAndAddToConnection(Element streamElement, TrafficStream trafficStream,
+                                                                     int refLaneId, int refConnectTo) {
+        Element signalGroupsElement = (Element) streamElement.getElementsByTagName("MapExtension:signalGroups").item(0);
+        if (signalGroupsElement != null) {
+            // First try to find primary signal group
+            int physicalSignalGroupId = parseSignalGroupId(signalGroupsElement, "MapExtension:primary");
+            boolean isPrimary = physicalSignalGroupId > 0;
+
+            // If no primary found, look for secondary
+            if (physicalSignalGroupId == 0) {
+                physicalSignalGroupId = parseSignalGroupId(signalGroupsElement, "MapExtension:secondary");
+                isPrimary = false;
             }
 
             if (physicalSignalGroupId > 0) {
@@ -412,28 +443,62 @@ public class MapemParser {
                 // Create or get the physical signal group
                 SignalGroup signalGroup = getOrCreatePhysicalSignalGroup(physicalSignalGroupId);
                 
-                // Find connection for this traffic stream
+                // Find the immediate connection for this traffic stream
                 Connection connection = findConnection(refLaneId, refConnectTo);
                 
                 if (connection != null) {
-                    // Set physical signal group ID on the connection
-                    connection.setPhysicalSignalGroupId(physicalSignalGroupId);
+                    // Get the logical signal group ID of this connection
+                    int logicalSignalGroupId = connection.getLogicalSignalGroupId();
                     
-                    // Link the connection to traffic stream
-                    trafficStream.setConnection(connection);
+                    // Find all connections with the same logical signal group ID
+                    List<Connection> connWithSameLogicalGroup = intersection.getConnectionsByLogicalSignalGroupId(logicalSignalGroupId);
+                    
+                    // Apply the physical signal group ID to all these connections
+                    // and add them all to the traffic stream
+                    for (Connection conn : connWithSameLogicalGroup) {
+                        // Add physical signal group ID to each connection
+                        conn.addPhysicalSignalGroupId(physicalSignalGroupId);
+                        
+                        // Link each connection to the signal group
+                        signalGroup.addControlledConnection(conn);
+                        
+                        // Add each connection to the traffic stream
+                        trafficStream.addConnection(conn);
+                        
+                        logger.debug("Linked connection {} to physical signal group {} via logical group {}", 
+                                conn.getId(), physicalSignalGroupId, logicalSignalGroupId);
+                    }
                     
                     // Link the signal group to traffic stream
-                    trafficStream.setSignalGroup(signalGroup);
+                    trafficStream.linkToSignalGroup(signalGroup);
+                    
+                    logger.debug("Linked traffic stream with signal group {} for connections with logical group {}", 
+                            physicalSignalGroupId, logicalSignalGroupId);
                 } else {
                     logger.warn("Could not find connection for traffic stream: {} -> {}", refLaneId, refConnectTo);
                 }
             } else {
                 logger.warn("No physical signal group ID found for traffic stream: {} -> {}", refLaneId, refConnectTo);
             }
-
-            intersection.addTrafficStream(trafficStream);
-            logger.debug("Added traffic stream: {}", trafficStream);
         }
+    }
+
+    /**
+     * Parse a signal group ID from element
+     */
+    private int parseSignalGroupId(Element signalGroupsElement, String tagName) {
+        Element element = (Element) signalGroupsElement.getElementsByTagName(tagName).item(0);
+        if (element != null) {
+            String physicalSignalGroupIdStr = getTagContent(element, "MapExtension:vt");
+            if (physicalSignalGroupIdStr != null && !physicalSignalGroupIdStr.isEmpty()) {
+                try {
+                    return Integer.parseInt(physicalSignalGroupIdStr);
+                } catch (NumberFormatException e) {
+                    logger.warn("Invalid physical signal group ID: {}", physicalSignalGroupIdStr);
+                }
+            }
+        }
+        return 0;
     }
 
     /**
@@ -442,7 +507,7 @@ public class MapemParser {
     private void establishSignalGroupLinkages() {
         logger.info("Establishing signal group linkages");
         
-        // For each traffic stream, link the physical signal group to the connection
+        // For each traffic stream, link the physical signal group to all connected connections
         for (TrafficStream stream : intersection.getTrafficStreams()) {
             int physicalSignalGroupId = stream.getPhysicalSignalGroupId();
             
@@ -455,28 +520,104 @@ public class MapemParser {
                     signalGroup = getOrCreatePhysicalSignalGroup(physicalSignalGroupId);
                 }
                 
-                // Find the connection for this stream
+                // Find the initial connection for this stream
                 Connection connection = findConnection(stream.getRefLaneId(), stream.getRefConnectTo());
                 
                 if (connection != null) {
-                    // Link the connection to the signal group
-                    connection.setSignalGroup(signalGroup);
-                    signalGroup.addControlledConnection(connection);
+                    // Get logical signal group ID
+                    int logicalSignalGroupId = connection.getLogicalSignalGroupId();
                     
-                    // Set physical signal group ID on connection again for clarity
-                    connection.setPhysicalSignalGroupId(physicalSignalGroupId);
+                    // Find all connections with the same logical signal group ID
+                    List<Connection> connectionsWithSameLogicalGroup = 
+                            intersection.getConnectionsByLogicalSignalGroupId(logicalSignalGroupId);
                     
-                    logger.debug("Linked connection {} to physical signal group {}", 
-                        connection.getId(), physicalSignalGroupId);
+                    for (Connection conn : connectionsWithSameLogicalGroup) {
+                        // Link each connection to the signal group
+                        conn.addSignalGroup(signalGroup);
+                        signalGroup.addControlledConnection(conn);
+                        
+                        // Add each connection to the traffic stream
+                        stream.addConnection(conn);
+                        
+                        logger.debug("Linked connection {} to physical signal group {} via logical group {}", 
+                            conn.getId(), physicalSignalGroupId, logicalSignalGroupId);
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Validates that all ingress lanes with traffic streams have at least one connection with a signal group
+     * @throws RuntimeException if any ingress lane with traffic streams has no connections with signal groups
+     */
+    private void validateIngressLaneSignalGroups() {
+        List<Integer> lanesWithoutSignalGroups = new ArrayList<>();
         
-        // Validate and log results
-        for (Connection connection : intersection.getConnections()) {
-            if (connection.getSignalGroup() == null) {
-                logger.warn("Connection {} has no signal group", connection.getId());
+        for (Integer laneId : ingressLanesWithTrafficStreams) {
+            Lane lane = intersection.getLane(laneId);
+            if (lane == null) continue;
+            
+            boolean hasSignalGroup = false;
+            
+            // Check if any traffic stream for this lane has connections with signal groups
+            for (TrafficStream stream : intersection.getTrafficStreams()) {
+                if (stream.getRefLaneId() == laneId && !stream.getConnections().isEmpty()) {
+                    hasSignalGroup = true;
+                    break;
+                }
             }
+            
+            // If no traffic stream with connections found, check all connections from this lane
+            if (!hasSignalGroup) {
+                for (Connection connection : intersection.getConnections()) {
+                    if (connection.getIngressLane() != null && 
+                        connection.getIngressLane().getId() == laneId &&
+                        connection.hasSignalGroups()) {
+                        hasSignalGroup = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!hasSignalGroup) {
+                lanesWithoutSignalGroups.add(laneId);
+                logger.error("Ingress lane {} has no connections with physical signal groups", laneId);
+            }
+        }
+        
+        if (!lanesWithoutSignalGroups.isEmpty()) {
+            StringBuilder errorMsg = new StringBuilder("The following ingress lanes have no connections with physical signal groups: ");
+            for (int i = 0; i < lanesWithoutSignalGroups.size(); i++) {
+                if (i > 0) errorMsg.append(", ");
+                errorMsg.append(lanesWithoutSignalGroups.get(i));
+            }
+            throw new RuntimeException(errorMsg.toString());
+        }
+        
+        // Log connections without signal groups, but don't fail validation
+        logConnectionsWithoutSignalGroups();
+    }
+    
+    /**
+     * Logs connections that don't have signal groups (for informational purposes)
+     */
+    private void logConnectionsWithoutSignalGroups() {
+        List<String> connectionsWithoutSignalGroups = new ArrayList<>();
+        
+        for (Connection connection : intersection.getConnections()) {
+            if (!connection.hasSignalGroups()) {
+                String connInfo = connection.getId() + " (lane " + 
+                    (connection.getIngressLane() != null ? connection.getIngressLane().getId() : "unknown") + 
+                    " → " + 
+                    (connection.getEgressLane() != null ? connection.getEgressLane().getId() : "unknown") + ")";
+                connectionsWithoutSignalGroups.add(connInfo);
+            }
+        }
+        
+        if (!connectionsWithoutSignalGroups.isEmpty()) {
+            logger.info("The following connections have no physical signal groups (this is informational only): {}", 
+                String.join(", ", connectionsWithoutSignalGroups));
         }
     }
 
@@ -488,36 +629,48 @@ public class MapemParser {
         SignalGroup signalGroup = intersection.getPhysicalSignalGroup(physicalSignalGroupId);
         
         if (signalGroup == null) {
-            // Determine the type based on ID pattern (could be enhanced with actual STG data)
-            SignalGroup.SignalGroupType type = determineSignalGroupType(physicalSignalGroupId);
-            String name = "SG" + physicalSignalGroupId;
+            // First check if we have type information from STG file
+            SignalGroup stgSignalGroup = stgSignalGroups.get(physicalSignalGroupId);
             
-            signalGroup = new SignalGroup(physicalSignalGroupId, name, type);
+            if (stgSignalGroup != null) {
+                // If found in STG, use name and type from there
+                signalGroup = new SignalGroup(
+                    physicalSignalGroupId, 
+                    stgSignalGroup.getName(), 
+                    stgSignalGroup.getType()
+                );
+                logger.debug("Created signal group {} from STG data with type {}", 
+                    physicalSignalGroupId, stgSignalGroup.getType());
+            } else {
+                // Otherwise determine type based on ID pattern
+                SignalGroup.SignalGroupType type = determineSignalGroupTypeFallback(physicalSignalGroupId);
+                String name = "SG" + physicalSignalGroupId;
+                
+                signalGroup = new SignalGroup(physicalSignalGroupId, name, type);
+                logger.debug("Created signal group {} with fallback type {}", physicalSignalGroupId, type);
+            }
             
             // Add to intersection and to our local map
             intersection.addPhysicalSignalGroup(signalGroup);
             physicalSignalGroups.put(physicalSignalGroupId, signalGroup);
-            
-            logger.debug("Created physical signal group: {}", signalGroup);
         }
         
         return signalGroup;
     }
 
     /**
-     * Determines signal group type based on ID (this is a placeholder)
-     * In a real system, this would come from the STG file
+     * Fallback method to determine signal group type based on ID when STG data is not available
      */
-    private SignalGroup.SignalGroupType determineSignalGroupType(int physicalSignalGroupId) {
-        // Simple placeholder logic - this would be replaced with actual type from STG
-        if (physicalSignalGroupId >= 7 && physicalSignalGroupId <= 10) {
-            // IDs 7-10 are pedestrian crossings in our sample data
+    private SignalGroup.SignalGroupType determineSignalGroupTypeFallback(int physicalSignalGroupId) {
+        // Simple fallback logic when STG data is not available
+        if (physicalSignalGroupId >= 14 && physicalSignalGroupId <= 28) {
+            // IDs 14-28 are typically pedestrian crossings (FG)
             return SignalGroup.SignalGroupType.FG;
-        } else if (physicalSignalGroupId == 6) {
-            // ID 6 is for cyclists in our sample
+        } else if (physicalSignalGroupId >= 10 && physicalSignalGroupId <= 13) {
+            // IDs 10-13 are typically for cyclists (RD)
             return SignalGroup.SignalGroupType.RD;
         } else {
-            // Default to vehicle traffic
+            // Default to vehicle traffic (FV)
             return SignalGroup.SignalGroupType.FV;
         }
     }
@@ -593,50 +746,6 @@ public class MapemParser {
                         
                         if (isStopLine) {
                             logger.debug("Found stop line for lane {}: ({}, {})", lane.getId(), x, y);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Extract stopline position for an ingress lane
-     */
-    private void extractStopLinePosition(Element laneElement, Lane lane) {
-        if (!lane.isIngress()) {
-            return; // Only process ingress lanes
-        }
-        
-        NodeList nodeXYNodes = laneElement.getElementsByTagName("DSRC:NodeXY");
-        for (int j = 0; j < nodeXYNodes.getLength(); j++) {
-            Element nodeXYElement = (Element) nodeXYNodes.item(j);
-            
-            // Check if this node is a stop line
-            Element attributesElement = (Element) nodeXYElement.getElementsByTagName("DSRC:attributes").item(0);
-            if (attributesElement != null) {
-                NodeList localNodeList = attributesElement.getElementsByTagName("DSRC:localNode");
-                if (localNodeList.getLength() > 0) {
-                    Element localNodeElement = (Element) localNodeList.item(0);
-                    if (localNodeElement.getElementsByTagName("DSRC:stopLine").getLength() > 0) {
-                        // Found a stopline node, extract coordinates
-                        Element deltaElement = (Element) nodeXYElement.getElementsByTagName("DSRC:delta").item(0);
-                        if (deltaElement != null) {
-                            NodeList deltaChildren = deltaElement.getChildNodes();
-                            for (int k = 0; k < deltaChildren.getLength(); k++) {
-                                Node childNode = deltaChildren.item(k);
-                                if (childNode.getNodeType() == Node.ELEMENT_NODE &&
-                                        childNode.getNodeName().startsWith("DSRC:node-XY")) {
-                                    Element xyElement = (Element) childNode;
-                                    int x = Integer.parseInt(getTagContent(xyElement, "DSRC:x"));
-                                    int y = Integer.parseInt(getTagContent(xyElement, "DSRC:y"));
-                                    
-                                    // Set stopline position on the lane
-                                    lane.setStopLinePosition(x, y);
-                                    logger.debug("Found stop line for lane {}: ({}, {})", lane.getId(), x, y);
-                                    return; // Stop after finding the first stopline
-                                }
-                            }
                         }
                     }
                 }

@@ -7,6 +7,7 @@ import de.trafficvalidator.model.ValidationResult;
 import org.kie.api.KieServices;
 import org.kie.api.runtime.KieContainer;
 import org.kie.api.runtime.KieSession;
+import org.kie.api.runtime.StatelessKieSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,7 +90,7 @@ public class GreenCyclistArrowRules {
         for (Connection connection : connections) {
             ValidationResult result = validateConnection(intersection, connection);
             // Only add non-empty results to the list (rule engine will skip irrelevant connections)
-            if (!result.getReasons().isEmpty() || result.isValid()) {
+            if ((!result.getReasons().isEmpty() || result.isValid()) && connection.isCyclistRightTurn()) {
                 results.add(result);
             }
         }
@@ -108,42 +109,27 @@ public class GreenCyclistArrowRules {
         ValidationResult result = new ValidationResult(connection);
 
         // Create KIE session for rules
-        KieSession kieSession = kieContainer.newKieSession(SESSION_NAME);
+        StatelessKieSession kieSession = kieContainer.newStatelessKieSession(SESSION_NAME);
 
-        try {
-            // Insert facts into session
-            kieSession.insert(connection);
-            kieSession.insert(result);
-            kieSession.insert(intersection);
-
-            // Insert all other connections from the intersection
-            for (Connection otherConnection : intersection.getConnections()) {
-                if (otherConnection != connection) {
-                    kieSession.insert(otherConnection);
-                }
-            }
-
-            // Insert all physical signal groups (vt) for evaluation
-            for (SignalGroup physicalSignalGroup : intersection.getPhysicalSignalGroups().values()) {
-                kieSession.insert(physicalSignalGroup);
-            }
-
-            // Fire rules
-            int rulesFired = kieSession.fireAllRules();
-            logger.debug("Fired {} rules for connection {}", rulesFired, connection);
-
-            // Log validation result only if it's a cyclist right turn (otherwise rules won't have done anything)
-            if (connection.isCyclistRightTurn()) {
-                if (result.isValid()) {
-                    logger.info("Connection {} is valid for green cyclist arrow", connection);
-                } else {
-                    logger.info("Connection {} is invalid for green cyclist arrow: {}", connection, result.getReasons());
-                }
-            }
-
-            return result;
-        } finally {
-            kieSession.dispose();
+        // Only pass the minimum required facts
+        List<Object> facts = new ArrayList<>();
+        facts.add(connection);
+        facts.add(result);
+        if (connection.getId() == 34 || connection.getId() == 33 || connection.getId() == 27) {
+            logger.info("Validating connection with id 34");
         }
+        // Execute the stateless session with minimal facts
+        kieSession.execute(facts);
+
+        // Log validation result only if it's a cyclist right turn (otherwise rules won't have done anything)
+        if (connection.isCyclistRightTurn()) {
+            if (result.isValid()) {
+                logger.info("Connection {} is valid for green cyclist arrow", connection);
+            } else {
+                logger.info("Connection {} is invalid for green cyclist arrow: {}", connection, result.getReasons());
+            }
+        }
+
+        return result;
     }
 }
