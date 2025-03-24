@@ -46,3 +46,25 @@ services:
         - path: src/streamlit_app.py
           action: sync+restart
           target: /app/streamlit_app.py
+
+  rule_engine_api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.rule_engine
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./rule_enginge_api/src:/app/src
+      - ./rule_enginge_api/configurations:/app/configurations
+      - ./rule_enginge_api/rules:/app/rules
+    develop:
+      watch:
+        - path: rule_enginge_api/src/
+          action: sync+restart
+          target: /app/src/
+        - path: rule_enginge_api/configurations/
+          action: sync
+          target: /app/configurations/
+        - path: rule_enginge_api/rules/
+          action: sync
+          target: /app/rules/
