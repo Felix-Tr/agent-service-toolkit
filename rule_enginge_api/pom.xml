@@ -119,7 +119,6 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <mainClass>de.trafficvalidator.TrafficValidatorApplication</mainClass>
-                    <executable>true</executable>
                 </configuration>
                 <executions>
                     <execution>

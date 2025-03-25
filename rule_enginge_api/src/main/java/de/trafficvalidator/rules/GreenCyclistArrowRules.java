@@ -25,7 +25,7 @@ import java.util.List;
 public class GreenCyclistArrowRules {
     private static final Logger logger = LoggerFactory.getLogger(GreenCyclistArrowRules.class);
     private static final String SESSION_NAME = "GreenCyclistArrowRulesSession";
-    private static final String DRL_FILE = "rules/cyclist_arrow_rules.drl";
+    private static final String DRL_FILE = "de/trafficvalidator/rules/cyclist_arrow_rules.drl";
 
     private final KieContainer kieContainer;
 
