@@ -353,7 +353,7 @@ public class ValidationService {
             groupInfo.put("id", group.getPhysicalSignalGroupId());
             groupInfo.put("name", group.getName());
             groupInfo.put("type", group.getType().name());
-            groupInfo.put("controlsOnlyLeftTurns", group.controlsOnlyLeftTurns());
+            groupInfo.put("controlsOnlyLeftTurns", group.istLinksabbiegerVollscheibe());
 
             // Get connections controlled by this physical group
             List<Connection> connections = intersection.getConnectionsByPhysicalSignalGroupId(group.getPhysicalSignalGroupId());

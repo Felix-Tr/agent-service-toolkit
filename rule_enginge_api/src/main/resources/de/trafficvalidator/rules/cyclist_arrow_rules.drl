@@ -53,7 +53,7 @@ rule "CheckVollscheibeMitPfeil"
         
         // Check if it has a signal group that only controls left turns
         $signalGroup : SignalGroup(
-            controlsOnlyLeftTurns() == true
+            istLinksabbiegerVollscheibe() == true
         ) from $leftTurn.getSignalGroup()
     then
         $result.addFailure("VwV-StVo zu § 37, XI., 1. a) - dem entgegenkommenden Verkehr wird ein konfliktfreies Abbiegen nach links signalisiert (relevante Signalgruppe: " + $signalGroup.getName() + ")");
@@ -72,9 +72,7 @@ rule "CheckDiagonalGruen"
         // Find any left turn from opposite direction using the connection's egress lane
         $leftTurn : Connection(
             isLeftTurn() == true, 
-            this != $rightTurn,
-            isFromOppositeDirectionOf($rightTurn) == true,
-            sharesEgressLaneWith($rightTurn) == true
+            this != $rightTurn
         ) from $rightTurn.getEgressLane().getIncomingConnections()
         
         // Check if it has a diagonal green arrow signal group
@@ -101,6 +99,19 @@ rule "CheckRechtsabbiegehilfsignal"
         $result.addFailure("VwV-StVo zu § 37, XI., 1. c) - Pfeile in den für den Rechtsabbieger gültigen Lichtzeichen schreiben die Fahrtrichtung vor (relevante Signalgruppe: " + $signalGroup.getName() + ")");
 end
 
+
+/**
+ * Rule to check for directional arrows in traffic lights
+ * VwV-StVo zu § 37, XI., 1. c)
+ */
+//rule "CheckRechtsabbiegehilfsignal"
+//    when
+//        $rightTurn : Connection(isCyclistRightTurn())
+//        $result : ValidationResult(connection == $rightTurn)
+//        $rightTurn.konfliktMitLinksAbbiegetasche()
+//    then
+//        $result.addFailure("VwV-StVo zu § 37, XI., 1. c) - Pfeile in den für den Rechtsabbieger gültigen Lichtzeichen schreiben die Fahrtrichtung vor (relevante Signalgruppe: " + $signalGroup.getName() + ")");
+//end
 
 /**
  * Rule to mark valid connections

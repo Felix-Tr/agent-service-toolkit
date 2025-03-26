@@ -25,7 +25,8 @@ public class SignalGroup {
         DN,  // Diagonalgrünpfeile für Linksabbieger (Diagonal green arrow for left turn)
         RD,  // Radverkehr (Bicycle traffic)
         FG,  // Fußgänger (Pedestrian traffic)
-        RA   // Rechtsabbiegepfeil (Right turn arrow signal)
+        RA,   // Rechtsabbiegepfeil (Right turn arrow signal)
+        LA   // Rechtsabbiegepfeil (Right turn arrow signal)
     }
 
     public SignalGroup(int physicalSignalGroupId, String name, SignalGroupType type) {
@@ -76,49 +77,32 @@ public class SignalGroup {
      * and signal groups that exclusively control left turns
      */
     public boolean hasDirectionalArrows() {
-        return isDiagonalLeftTurn() || isAdditionalRightTurnArrow() || controlsOnlyLeftTurns();
+        return isDiagonalLeftTurn() || isAdditionalRightTurnArrow() || istLinksabbiegerVollscheibe();
     }
 
     /**
-     * Checks if this signal group controls exclusively left turn connections
+     * Checks if this signal group controls exclusively left turn connections and is Vollscheibe
      */
-    public boolean controlsOnlyLeftTurns() {
-        if (controlledConnections.isEmpty()) {
+    public boolean istLinksabbiegerVollscheibe() {
+        // Check standard Types
+        if (type == SignalGroupType.LA) {
+            return true;
+        } else if (type == SignalGroupType.DN) {
             return false;
         }
 
+        // Fallback without Info about type if vollscheibe has only left turns and is FV
         for (Connection connection : controlledConnections) {
             if (!connection.isLeftTurn()) {
                 return false;
             }
         }
 
-        return true;
-    }
-
-    /**
-     * Checks if this signal group controls conflict-free left turns
-     * This is the case for diagonal green arrows and dedicated left turn signals
-     */
-    public boolean providesConflictFreeLeftTurn() {
-        return isDiagonalLeftTurn() || controlsOnlyLeftTurns();
-    }
-
-    /**
-     * Checks if this signal group controls exclusively right turn connections
-     */
-    public boolean controlsOnlyRightTurns() {
-        if (controlledConnections.isEmpty()) {
-            return false;
+        if (type == SignalGroupType.FV) {
+            return true;
+        } else {
+            throw new IllegalArgumentException("Unknown signal group type configured controlling only left turns: " + type);
         }
-
-        for (Connection connection : controlledConnections) {
-            if (!connection.isRightTurn()) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     // Getters and Setters

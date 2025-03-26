@@ -85,35 +85,6 @@ public class MapemParser {
     }
 
     /**
-     * Updates signal group types from STG data
-     */
-    private void updateSignalGroupTypesFromStg() {
-        if (stgSignalGroups.isEmpty()) {
-            logger.warn("No STG signal group data available, using fallback type determination");
-            return;
-        }
-
-        for (SignalGroup signalGroup : intersection.getPhysicalSignalGroups().values()) {
-            int id = signalGroup.getPhysicalSignalGroupId();
-            SignalGroup stgSignalGroup = stgSignalGroups.get(id);
-            
-            if (stgSignalGroup != null) {
-                // Update type and name from STG data
-                signalGroup.setType(stgSignalGroup.getType());
-                signalGroup.setName(stgSignalGroup.getName());
-                logger.debug("Updated signal group {} type to {} from STG data", 
-                    id, stgSignalGroup.getType());
-            } else {
-                // If not found in STG, use fallback determination
-                SignalGroup.SignalGroupType fallbackType = determineSignalGroupTypeFallback(id);
-                signalGroup.setType(fallbackType);
-                logger.warn("Signal group {} not found in STG data, using fallback type {}", 
-                    id, fallbackType);
-            }
-        }
-    }
-
-    /**
      * Parses basic intersection information
      */
     private void parseIntersection(Document document) {
