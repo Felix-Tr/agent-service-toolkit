@@ -2555,7 +2555,7 @@
                      <DSRC:Connection>
                         <DSRC:connectingLane>
                            <DSRC:lane>25</DSRC:lane>
-                           <DSRC:maneuver>001000000000</DSRC:maneuver>
+                           <DSRC:maneuver>010000000000</DSRC:maneuver>
                         </DSRC:connectingLane>
                         <DSRC:signalGroup>16</DSRC:signalGroup>
                         <DSRC:userClass>0</DSRC:userClass>
