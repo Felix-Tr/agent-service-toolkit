@@ -46,7 +46,7 @@ public class DirectionCalculator {
         
         // Collect all stop line nodes from ingress lanes
         for (Lane lane : intersection.getLanes().values()) {
-            if (lane.isIngress()) {
+            if (lane.isIngress() && lane.isVehicleLane()) {
                 Lane.NodePoint stopLineNode = lane.getStopLineNode();
                 if (stopLineNode != null) {
                     stopLineNodes.add(stopLineNode);
@@ -88,38 +88,57 @@ public class DirectionCalculator {
      * Implements the exact algorithm from the Python example
      */
     private Direction calculateCardinalDirection(double x, double y) {
+        logger.debug("Calculating direction for position (x={}, y={}), relative to center ({}, {})", 
+            x, y, centerX, centerY);
+
         // Calculate dx and dy relative to center (point - center)
         double dx = x - centerX;
         double dy = y - centerY;
+        logger.debug("Delta values: dx={}, dy={}", dx, dy);
 
         // Calculate the angle in compass bearings (0° = North, 90° = East, etc.)
-        // This matches the Python example: (90 - math.degrees(math.atan2(dy, dx))) % 360
         double angleRad = Math.atan2(dy, dx);
         double angleDeg = Math.toDegrees(angleRad);
         double compassAngle = (90 - angleDeg) % 360;
         
-        // Ensure angle is positive (0-360)
         if (compassAngle < 0) {
             compassAngle += 360;
         }
         
+        logger.debug("Calculated compass angle: {} degrees", compassAngle);
+        
         // Determine cardinal direction based on angle
-        // This matches the sector boundaries from the Python example
         if (compassAngle < NORTH_BOUNDARY_2 || compassAngle >= NORTH_BOUNDARY_1) {
+            logger.debug("Angle {} falls in NORTH sector ({}-360° or 0-{}°)", 
+                compassAngle, NORTH_BOUNDARY_1, NORTH_BOUNDARY_2);
             return Direction.N;
         } else if (compassAngle < NORTHEAST_BOUNDARY) {
+            logger.debug("Angle {} falls in NORTHEAST sector ({}-{}°)", 
+                compassAngle, NORTH_BOUNDARY_2, NORTHEAST_BOUNDARY);
             return Direction.NE;
         } else if (compassAngle < EAST_BOUNDARY) {
+            logger.debug("Angle {} falls in EAST sector ({}-{}°)", 
+                compassAngle, NORTHEAST_BOUNDARY, EAST_BOUNDARY);
             return Direction.E;
         } else if (compassAngle < SOUTHEAST_BOUNDARY) {
+            logger.debug("Angle {} falls in SOUTHEAST sector ({}-{}°)", 
+                compassAngle, EAST_BOUNDARY, SOUTHEAST_BOUNDARY);
             return Direction.SE;
         } else if (compassAngle < SOUTH_BOUNDARY) {
+            logger.debug("Angle {} falls in SOUTH sector ({}-{}°)", 
+                compassAngle, SOUTHEAST_BOUNDARY, SOUTH_BOUNDARY);
             return Direction.S;
         } else if (compassAngle < SOUTHWEST_BOUNDARY) {
+            logger.debug("Angle {} falls in SOUTHWEST sector ({}-{}°)", 
+                compassAngle, SOUTH_BOUNDARY, SOUTHWEST_BOUNDARY);
             return Direction.SW;
         } else if (compassAngle < WEST_BOUNDARY) {
+            logger.debug("Angle {} falls in WEST sector ({}-{}°)", 
+                compassAngle, SOUTHWEST_BOUNDARY, WEST_BOUNDARY);
             return Direction.W;
         } else {
+            logger.debug("Angle {} falls in NORTHWEST sector ({}-{}°)", 
+                compassAngle, WEST_BOUNDARY, NORTHWEST_BOUNDARY);
             return Direction.NW;
         }
     }
@@ -179,6 +198,7 @@ public class DirectionCalculator {
             // Calculate average position for ingress lanes in this approach
             List<Lane> ingressLanes = lanes.stream()
                     .filter(Lane::isIngress)
+                    .filter(Lane::isVehicleLane)
                     .toList();
             
             if (!ingressLanes.isEmpty()) {
@@ -205,6 +225,9 @@ public class DirectionCalculator {
                     double avgX = sumX / count;
                     double avgY = sumY / count;
                     
+                    logger.debug("Calculated average position for approach {}: (x={}, y={}) from {} lanes", 
+                        approachId, avgX, avgY, count);
+                    
                     // Calculate direction using the same algorithm as the Python example
                     Direction direction = calculateCardinalDirection(avgX, avgY);
                     
@@ -217,42 +240,7 @@ public class DirectionCalculator {
                             approachId, direction, ingressLanes.size());
                 }
             } else {
-                // If no ingress lanes, try using egress lanes
-                List<Lane> egressLanes = lanes.stream()
-                        .filter(Lane::isEgress)
-                        .toList();
-                
-                if (!egressLanes.isEmpty()) {
-                    // Calculate direction based on egress lanes
-                    double sumX = 0;
-                    double sumY = 0;
-                    int count = 0;
-                    
-                    for (Lane lane : egressLanes) {
-                        if (!lane.getNodeList().isEmpty()) {
-                            Lane.NodePoint lastNode = lane.getLastNode();
-                            sumX += lastNode.getX();
-                            sumY += lastNode.getY();
-                            count++;
-                        }
-                    }
-                    
-                    if (count > 0) {
-                        double avgX = sumX / count;
-                        double avgY = sumY / count;
-                        
-                        // Calculate direction using the same algorithm as the Python example
-                        Direction direction = calculateCardinalDirection(avgX, avgY);
-                        
-                        // Apply this direction to all lanes in the approach
-                        for (Lane lane : lanes) {
-                            lane.setCardinalDirection(direction);
-                        }
-                        
-                        logger.info("Set direction for approach {}: {} (based on {} egress lanes)", 
-                                approachId, direction, egressLanes.size());
-                    }
-                }
+                throw new RuntimeException("Map has approach ID " + approachId + " but no ingress lane found");
             }
         }
         
