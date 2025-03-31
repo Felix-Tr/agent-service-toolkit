@@ -2,6 +2,7 @@ package de.trafficvalidator.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Represents a connection between an ingress and egress lane.
@@ -468,6 +469,25 @@ public class Connection {
      */
     public boolean hasSignalGroups() {
         return signalGroups != null && !signalGroups.isEmpty();
+    }
+
+    /**
+     * Returns a string representation of all signal groups associated with this connection
+     * @return A string listing the signal groups with their properties
+     */
+    public String getConnectedSignalGroups() {
+        if (signalGroups == null || signalGroups.isEmpty()) {
+            return "No signal groups";
+        }
+        
+        return signalGroups.stream()
+            .map(sg -> String.format("%s (type=%s, isDiagonal=%s, isRightTurnArrow=%s, isLeftTurnFull=%s)",
+                sg.getName(),
+                sg.getType(),
+                sg.isDiagonalLeftTurn(),
+                sg.isAdditionalRightTurnArrow(),
+                sg.istLinksabbiegerVollscheibe()))
+            .collect(Collectors.joining(", "));
     }
 
     @Override

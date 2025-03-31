@@ -1,0 +1,53 @@
+package de.trafficvalidator.rules;
+unit SignalGroupRuleUnit;
+
+import de.trafficvalidator.model.Connection;
+import de.trafficvalidator.model.Intersection;
+import de.trafficvalidator.model.SignalGroup;
+import de.trafficvalidator.model.ValidationResult;
+import de.trafficvalidator.model.Lane;
+import de.trafficvalidator.model.Direction;
+
+dialect "java"
+
+/**
+ * THIS IS RANDOM TEMPLATE CODE FOR NOW
+ * Rules for validating signal group configurations.
+ * This rule unit validates connections against signal group rules.
+ */
+
+/**
+ * Rule to check if a left turn signal group is properly configured
+ */
+rule "CheckLeftTurnSignalGroup"
+when
+    // Get a connection with a left turn
+    $connection: /connections[isLeftTurn()]
+    $result: /results[connection == $connection]
+    
+    // Get the signal group for this connection
+    $signalGroup: SignalGroup() from $connection.getSignalGroup()
+    
+    // Check if it's not a left turn signal group
+    eval(!$signalGroup.istLinksabbiegerVollscheibe() && !$signalGroup.isDiagonalLeftTurn())
+then
+    $result.addFailure("Left turn connection is not controlled by a dedicated left turn signal group");
+end
+
+/**
+ * Rule to check if cyclist lanes have appropriate signal groups
+ */
+rule "CheckCyclistSignalGroup"
+when
+    // Get a connection that allows cyclists
+    $connection: /connections[allowsCyclists()]
+    $result: /results[connection == $connection]
+    
+    // Get the signal group for this connection
+    $signalGroup: SignalGroup() from $connection.getSignalGroup()
+    
+    // Check if it doesn't have a bicycle signal
+    eval(!$signalGroup.isBicycleSignal())
+then
+    $result.addFailure("Connection allowing cyclists should have a bicycle signal group");
+end 

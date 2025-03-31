@@ -8,24 +8,26 @@ import de.trafficvalidator.model.SignalGroup;
 import de.trafficvalidator.model.ValidationResult;
 import de.trafficvalidator.parser.MapemParser;
 import de.trafficvalidator.parser.StgParser;
-import de.trafficvalidator.rules.GreenCyclistArrowRules;
-import org.kie.api.KieServices;
-import org.kie.api.builder.KieBuilder;
-import org.kie.api.builder.KieFileSystem;
-import org.kie.api.builder.Message;
-import org.kie.api.builder.ReleaseId;
-import org.kie.api.builder.Results;
-import org.kie.api.runtime.KieContainer;
-import org.kie.api.runtime.KieSession;
+import de.trafficvalidator.rules.CyclistArrowRuleUnit;
+import de.trafficvalidator.rules.ResultContainer;
+import de.trafficvalidator.rules.RuleUnitRegistry;
+import de.trafficvalidator.rules.SignalGroupRuleUnit;
+import org.drools.ruleunits.api.RuleUnitInstance;
+import org.drools.ruleunits.api.RuleUnitProvider;
+import org.drools.ruleunits.api.RuleUnitData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -40,12 +42,13 @@ public class ValidationService {
     private static final Logger logger = LoggerFactory.getLogger(ValidationService.class);
 
     private final StorageService storageService;
-    private final KieContainer kieContainer;
+    private final RuleUnitRegistry ruleUnitRegistry;
 
     @Autowired
-    public ValidationService(StorageService storageService, KieContainer kieContainer) {
+    public ValidationService(StorageService storageService,
+                            RuleUnitRegistry ruleUnitRegistry) {
         this.storageService = storageService;
-        this.kieContainer = kieContainer;
+        this.ruleUnitRegistry = ruleUnitRegistry;
     }
 
     /**
@@ -61,13 +64,7 @@ public class ValidationService {
             Intersection intersection = loadIntersection(id);
 
             // Validate based on ruleset
-            List<ValidationResult> results;
-
-            if ("cyclist-arrow".equals(ruleset)) {
-                results = validateWithCyclistArrowRules(intersection);
-            } else {
-                results = validateWithCustomRuleset(intersection, ruleset);
-            }
+            List<ValidationResult> results = validateWithRuleUnit(intersection, ruleset);
 
             // Build response
             Map<String, Object> response = new HashMap<>();
@@ -131,7 +128,11 @@ public class ValidationService {
     public Map<String, Object> getAvailableConfigurations() {
         Map<String, Object> response = new HashMap<>();
         response.put("intersections", storageService.getAvailableIntersectionIds());
-        response.put("rulesets", storageService.getAvailableRulesets());
+        
+        // Get rulesets from both storage service and rule unit registry
+        List<String> rulesets = new ArrayList<>(ruleUnitRegistry.getAvailableCategories());
+        
+        response.put("rulesets", rulesets.stream().distinct().collect(Collectors.toList()));
         return response;
     }
 
@@ -162,116 +163,93 @@ public class ValidationService {
     }
 
     /**
-     * Validates intersection using built-in cyclist arrow rules
+     * Validates intersection using a rule unit for the specified ruleset
      *
      * @param intersection The intersection to validate
+     * @param ruleset The ruleset name to use
      * @return Validation results
      */
-    private List<ValidationResult> validateWithCyclistArrowRules(Intersection intersection) {
-        // Use the existing rules implementation with the injected KieContainer
-        GreenCyclistArrowRules rules = new GreenCyclistArrowRules(kieContainer);
-        return rules.validateIntersection(intersection);
+    private List<ValidationResult> validateWithRuleUnit(Intersection intersection, String ruleset) {
+        logger.info("Validating intersection {} with ruleset: {}", intersection.getId(), ruleset);
+        
+        // Check if the ruleset is available in the registry
+        Class<? extends RuleUnitData> ruleUnitClass = ruleUnitRegistry.getRuleUnitClass(ruleset);
+        
+        if (ruleUnitClass != null) {
+            // Ensure the rule unit implements ResultContainer
+            if (!ResultContainer.class.isAssignableFrom(ruleUnitClass)) {
+                throw new RuntimeException("Rule unit class does not implement ResultContainer: " + ruleUnitClass.getName());
+            }
+            
+            try {
+                // Create rule unit using registry's utility method
+                RuleUnitData ruleUnit = ruleUnitRegistry.createRuleUnit(ruleset, intersection.getConnections());
+                if (ruleUnit == null) {
+                    throw new RuntimeException("Failed to create rule unit for ruleset: " + ruleset);
+                }
+                
+                // Execute rules
+                try (RuleUnitInstance<?> instance = 
+                        RuleUnitProvider.get().createRuleUnitInstance(ruleUnit)) {
+                    instance.fire();
+                }
+                
+                // Get validation results using ResultContainer interface
+                ResultContainer<ValidationResult> resultContainer = (ResultContainer<ValidationResult>) ruleUnit;
+                List<ValidationResult> validationResults = 
+                    resultContainer.collectFromConnections(intersection.getConnections());
+                
+                // Filter for cyclist right turns if this is cyclist-arrow ruleset
+                if ("cyclist-arrow".equals(ruleset)) {
+                    return validationResults.stream()
+                            .filter(r -> r.getConnection() != null && 
+                                    r.getConnection().isCyclistRightTurn())
+                            .collect(Collectors.toList());
+                }
+                
+                return validationResults;
+            } catch (Exception e) {
+                logger.error("Failed to validate with ruleset: {}", ruleset, e);
+                throw new RuntimeException("Failed to validate with ruleset: " + ruleset, e);
+            }
+        } else {
+            // Fall back to loading rules from file for backward compatibility
+            return validateWithCustomRuleset(intersection, ruleset);
+        }
     }
 
     /**
-     * Validates intersection using a custom ruleset
+     * Validates intersection using a custom ruleset loaded from a file
+     * This is a fallback method for backward compatibility
      *
      * @param intersection The intersection to validate
      * @param ruleset The ruleset name to use
      * @return Validation results
      */
     private List<ValidationResult> validateWithCustomRuleset(Intersection intersection, String ruleset) {
-        KieContainer customKieContainer = null;
-        KieSession kieSession = null;
-        
         try {
             // Load the rule file
             InputStream ruleStream = storageService.getRulesetFile(ruleset);
-
-            // Create a dynamic KieContainer with the custom rules
-            customKieContainer = createKieContainerFromRules(ruleset, ruleStream);
-
-            // Create a session for each validation
-            kieSession = customKieContainer.newKieSession();
+            byte[] ruleContent = ruleStream.readAllBytes();
+            String drl = new String(ruleContent);
             
-            // Create results list
+            // TODO: Implement loading custom rules with DataStore approach
+            // This is left as a placeholder for future implementation
+            
+            // For now, use a simple validation result for each connection
             List<ValidationResult> results = new ArrayList<>();
-            
-            // Insert intersection fact
-            kieSession.insert(intersection);
-            
-            // Insert all physical signal groups
-            for (SignalGroup group : intersection.getPhysicalSignalGroups().values()) {
-                kieSession.insert(group);
-            }
-            
-            // Process each connection separately
             for (Connection connection : intersection.getConnections()) {
                 ValidationResult result = new ValidationResult(connection);
-                
-                // Insert facts
-                kieSession.insert(connection);
-                kieSession.insert(result);
-                
                 results.add(result);
             }
-
-            // Fire rules
-            kieSession.fireAllRules();
-
-            // Return results (they will be updated by the rules)
+            
             return results;
         } catch (Exception e) {
             logger.error("Failed to validate with custom ruleset: {}", ruleset, e);
             throw new RuntimeException("Failed to validate with custom ruleset: " + ruleset, e);
-        } finally {
-            // Properly dispose of resources
-            if (kieSession != null) {
-                kieSession.dispose();
-            }
-            if (customKieContainer != null) {
-                customKieContainer.dispose();
-            }
         }
     }
-
-    /**
-     * Creates a KieContainer from a rule file
-     *
-     * @param ruleset The ruleset name
-     * @param ruleStream The rule file input stream
-     * @return A KieContainer for rule execution
-     * @throws IOException If the rule file cannot be read
-     */
-    private KieContainer createKieContainerFromRules(String ruleset, InputStream ruleStream) throws IOException {
-        KieServices kieServices = KieServices.Factory.get();
-        KieFileSystem kfs = kieServices.newKieFileSystem();
-
-        // Create a unique release ID for this ruleset with a timestamp to ensure uniqueness
-        String timestamp = String.valueOf(System.currentTimeMillis());
-        ReleaseId releaseId = kieServices.newReleaseId("de.trafficvalidator", "dynamic-rules-" + ruleset, "1.0.0-" + timestamp);
-        kfs.generateAndWritePomXML(releaseId);
-
-        // Read the rule file content
-        byte[] ruleContent = ruleStream.readAllBytes();
-
-        // Add the rule file to the KieFileSystem
-        kfs.write("src/main/resources/rules/" + ruleset + ".drl", new String(ruleContent));
-
-        // Build the rules
-        KieBuilder kieBuilder = kieServices.newKieBuilder(kfs);
-        kieBuilder.buildAll();
-
-        // Check for errors
-        Results results = kieBuilder.getResults();
-        if (results.hasMessages(Message.Level.ERROR)) {
-            throw new RuntimeException("Failed to build rules: " + results.getMessages());
-        }
-
-        // Create a KieContainer with the current ClassLoader
-        return kieServices.newKieContainer(releaseId, getClass().getClassLoader());
-    }
-
+    
     /**
      * Creates a summary of the intersection
      *

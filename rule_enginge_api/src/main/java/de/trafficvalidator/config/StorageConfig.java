@@ -13,17 +13,17 @@ public class StorageConfig {
     /**
      * Storage type: 'file' or 'database'
      */
-    private String type = "file";
+    private String type;
     
     /**
      * Base path for file storage
      */
-    private String basePath = "configurations";
+    private String basePath;
     
     /**
      * Rules directory path
      */
-    private String rulesPath = "rules";
+    private String rulesPath;
     
     public String getType() {
         return type;
