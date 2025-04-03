@@ -6,6 +6,7 @@ import de.trafficvalidator.model.RuleExecution;
 import org.drools.ruleunits.api.DataSource;
 import org.drools.ruleunits.api.DataStore;
 import org.drools.ruleunits.api.RuleUnitData;
+import org.drools.ruleunits.api.DataObserver;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,6 +30,7 @@ public class CyclistArrowRuleUnit implements RuleUnitData {
     private final DataStore<ValidationResult> results;
     private final DataStore<RuleExecution> executions;
     private final Map<Integer, ValidationResult> resultMap;
+    private final Map<String, List<RuleExecution>> executionMap;
     
     /**
      * Default constructor
@@ -38,6 +40,13 @@ public class CyclistArrowRuleUnit implements RuleUnitData {
         this.results = DataSource.createStore();
         this.executions = DataSource.createStore();
         this.resultMap = new HashMap<>();
+        this.executionMap = new HashMap<>();
+        
+        // Add observer to update executionMap when executions are added
+        this.executions.subscribe(DataObserver.of(
+            execution -> executionMap.computeIfAbsent(execution.getRuleName(), k -> new ArrayList<>())
+                                   .add(execution)
+        ));
     }
     
     /**
@@ -48,6 +57,13 @@ public class CyclistArrowRuleUnit implements RuleUnitData {
         this.results = DataSource.createStore();
         this.executions = DataSource.createStore();
         this.resultMap = new HashMap<>();
+        this.executionMap = new HashMap<>();
+        
+        // Add observer to update executionMap when executions are added
+        this.executions.subscribe(DataObserver.of(
+            execution -> executionMap.computeIfAbsent(execution.getRuleName(), k -> new ArrayList<>())
+                                   .add(execution)
+        ));
         
         // Populate connections and create corresponding validation results
         for (Connection connection : connectionList) {
@@ -128,21 +144,13 @@ public class CyclistArrowRuleUnit implements RuleUnitData {
     }
 
     public String getExecutionSummary() {
-        List<RuleExecution> executionList = new ArrayList<>();
-        // Since we can't directly iterate over DataStore, we'll use the rule execution behavior
-        // Each rule execution will be added to the executions DataStore during rule firing
-        // The results will be available after rule execution
-        
-        Map<String, Long> ruleCountMap = executionList.stream()
-                .collect(Collectors.groupingBy(
-                    RuleExecution::getRuleName,
-                    Collectors.counting()
-                ));
-        
-        StringBuilder summary = new StringBuilder("Rules executed:\n");
-        ruleCountMap.forEach((rule, count) -> 
-            summary.append(String.format("- %s (executed %d times)\n", rule, count)));
-            
+        StringBuilder summary = new StringBuilder("Rules which fired:\n");
+        executionMap.forEach((ruleName, execs) -> 
+            summary.append(String.format("- %s (executed %d times)\n", ruleName, execs.size())));
         return summary.toString();
+    }
+
+    public List<RuleExecution> getExecutionsForRule(String ruleName) {
+        return new ArrayList<>(executionMap.getOrDefault(ruleName, new ArrayList<>()));
     }
 } 

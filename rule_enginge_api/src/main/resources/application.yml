@@ -32,6 +32,8 @@ logging:
   level:
     root: INFO
     de.trafficvalidator: DEBUG
+    de.trafficvalidator.parser: INFO
+    de.trafficvalidator.util: INFO
     org.springframework: INFO
     # Enhanced Drools rule execution logging
     org.drools: INFO

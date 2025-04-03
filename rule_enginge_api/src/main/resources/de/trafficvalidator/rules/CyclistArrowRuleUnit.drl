@@ -44,7 +44,7 @@ when
     $signalGroup: SignalGroup(istLinksabbiegerVollscheibe() == true) from $leftTurn.getSignalGroup()
 then
     $result.addFailure("VwV-StVo zu § 37, XI., 1. a) - dem entgegenkommenden Verkehr wird ein konfliktfreies Abbiegen nach links signalisiert (relevante Signalgruppe: " + $signalGroup.getName() + ")");
-    executions.add(new RuleExecution(drools.getRule().getName()));
+    executions.add(new RuleExecution("CheckVollscheibeMitPfeil", $connection.getId()));
 end
 
 /**
@@ -68,7 +68,7 @@ when
     $signalGroup: SignalGroup(isDiagonalLeftTurn() == true) from $leftTurn.getSignalGroup()
 then
     $result.addFailure("VwV-StVo zu § 37, XI., 1. b) - für den entgegenkommenden Linksabbieger wird der grüne Pfeil gemäß § 37 Abs. 2 Nr. 1 Satz 4 verwendet (relevante Signalgruppe: " + $signalGroup.getName() + ")");
-    executions.add(new RuleExecution(drools.getRule().getName()));
+    executions.add(new RuleExecution("CheckDiagonalGruen", $connection.getId()));
 end
 
 /**
@@ -87,5 +87,5 @@ when
     ) from $connection.getSignalGroup()
 then
     $result.addFailure("VwV-StVo zu § 37, XI., 1. c) - Pfeile in den für den Rechtsabbieger gültigen Lichtzeichen schreiben die Fahrtrichtung vor (relevante Signalgruppe: " + $signalGroup.getName() + ")");
-    executions.add(new RuleExecution(drools.getRule().getName()));
+    executions.add(new RuleExecution("CheckRechtsabbiegehilfsignal", $connection.getId()));
 end
