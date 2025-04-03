@@ -5,6 +5,7 @@ import de.trafficvalidator.model.Connection;
 import de.trafficvalidator.model.Intersection;
 import de.trafficvalidator.model.SignalGroup;
 import de.trafficvalidator.model.ValidationResult;
+import de.trafficvalidator.model.RuleExecution;
 import de.trafficvalidator.model.Lane;
 import de.trafficvalidator.model.Direction;
 
@@ -21,7 +22,6 @@ dialect "java"
  * b) No green diagonal arrow for opposing left-turning traffic
  * c) No directional arrows in the traffic lights for the right-turn lane
  */
-
 
 /**
  * Rule to check for conflict-free left turn signals from opposing traffic
@@ -44,6 +44,7 @@ when
     $signalGroup: SignalGroup(istLinksabbiegerVollscheibe() == true) from $leftTurn.getSignalGroup()
 then
     $result.addFailure("VwV-StVo zu § 37, XI., 1. a) - dem entgegenkommenden Verkehr wird ein konfliktfreies Abbiegen nach links signalisiert (relevante Signalgruppe: " + $signalGroup.getName() + ")");
+    executions.add(new RuleExecution(drools.getRule().getName()));
 end
 
 /**
@@ -67,6 +68,7 @@ when
     $signalGroup: SignalGroup(isDiagonalLeftTurn() == true) from $leftTurn.getSignalGroup()
 then
     $result.addFailure("VwV-StVo zu § 37, XI., 1. b) - für den entgegenkommenden Linksabbieger wird der grüne Pfeil gemäß § 37 Abs. 2 Nr. 1 Satz 4 verwendet (relevante Signalgruppe: " + $signalGroup.getName() + ")");
+    executions.add(new RuleExecution(drools.getRule().getName()));
 end
 
 /**
@@ -85,4 +87,5 @@ when
     ) from $connection.getSignalGroup()
 then
     $result.addFailure("VwV-StVo zu § 37, XI., 1. c) - Pfeile in den für den Rechtsabbieger gültigen Lichtzeichen schreiben die Fahrtrichtung vor (relevante Signalgruppe: " + $signalGroup.getName() + ")");
+    executions.add(new RuleExecution(drools.getRule().getName()));
 end

@@ -7,20 +7,20 @@ import java.util.List;
  * Represents the result of validating a green cyclist arrow (Verkehrszeichen 721) rule.
  */
 public class ValidationResult {
-    private Connection connection;
-    private boolean isValid;
-    private List<String> reasons = new ArrayList<>();
+    private final Connection connection;
+    private final List<String> reasons = new ArrayList<>();
+    private final List<String> executedRules = new ArrayList<>();
+    private boolean valid = true;
     
     public ValidationResult(Connection connection) {
         this.connection = connection;
-        this.isValid = true; // Assume valid until proven otherwise
     }
     
     /**
      * Adds a failure reason and marks the result as invalid
      */
     public void addFailure(String reason) {
-        this.isValid = false;
+        this.valid = false;
         this.reasons.add(reason);
     }
 
@@ -29,11 +29,19 @@ public class ValidationResult {
     }
 
     public boolean isValid() {
-        return isValid;
+        return valid;
     }
 
     public List<String> getReasons() {
-        return reasons;
+        return new ArrayList<>(reasons);
+    }
+
+    public List<String> getExecutedRules() {
+        return new ArrayList<>(executedRules);
+    }
+
+    public void addExecutedRule(String ruleName) {
+        executedRules.add(ruleName);
     }
     
     /**
@@ -70,7 +78,7 @@ public class ValidationResult {
         sb.append(" (").append(connection.getIngressLane().getId())
           .append(" → ").append(connection.getEgressLane().getId()).append("): ");
         
-        if (isValid) {
+        if (valid) {
             sb.append("VALID - Can place Verkehrszeichen 721");
         } else {
             sb.append("INVALID - Cannot place Verkehrszeichen 721 due to:");

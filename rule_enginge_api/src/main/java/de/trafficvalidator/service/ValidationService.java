@@ -15,6 +15,8 @@ import de.trafficvalidator.rules.SignalGroupRuleUnit;
 import org.drools.ruleunits.api.RuleUnitInstance;
 import org.drools.ruleunits.api.RuleUnitProvider;
 import org.drools.ruleunits.api.RuleUnitData;
+import org.kie.api.event.rule.AfterMatchFiredEvent;
+import org.kie.api.event.rule.DefaultAgendaEventListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +32,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -171,50 +174,25 @@ public class ValidationService {
      */
     private List<ValidationResult> validateWithRuleUnit(Intersection intersection, String ruleset) {
         logger.info("Validating intersection {} with ruleset: {}", intersection.getId(), ruleset);
-        
-        // Check if the ruleset is available in the registry
-        Class<? extends RuleUnitData> ruleUnitClass = ruleUnitRegistry.getRuleUnitClass(ruleset);
-        
-        if (ruleUnitClass != null) {
-            // Ensure the rule unit implements ResultContainer
-            if (!ResultContainer.class.isAssignableFrom(ruleUnitClass)) {
-                throw new RuntimeException("Rule unit class does not implement ResultContainer: " + ruleUnitClass.getName());
+
+        // Create rule unit using registry's utility method
+        RuleUnitData ruleUnit = ruleUnitRegistry.createRuleUnit(ruleset, intersection.getConnections());
+
+        try (RuleUnitInstance<?> instance = RuleUnitProvider.get().createRuleUnitInstance(ruleUnit)) {
+            // Fire the rules
+            instance.fire();
+
+            // Get the execution summary if the rule unit supports it
+            if (ruleUnit instanceof CyclistArrowRuleUnit) {
+                CyclistArrowRuleUnit cyclistUnit = (CyclistArrowRuleUnit) ruleUnit;
+                logger.debug(cyclistUnit.getExecutionSummary());
+                return cyclistUnit.collectResults();
             }
-            
-            try {
-                // Create rule unit using registry's utility method
-                RuleUnitData ruleUnit = ruleUnitRegistry.createRuleUnit(ruleset, intersection.getConnections());
-                if (ruleUnit == null) {
-                    throw new RuntimeException("Failed to create rule unit for ruleset: " + ruleset);
-                }
-                
-                // Execute rules
-                try (RuleUnitInstance<?> instance = 
-                        RuleUnitProvider.get().createRuleUnitInstance(ruleUnit)) {
-                    instance.fire();
-                }
-                
-                // Get validation results using ResultContainer interface
-                ResultContainer<ValidationResult> resultContainer = (ResultContainer<ValidationResult>) ruleUnit;
-                List<ValidationResult> validationResults = 
-                    resultContainer.collectFromConnections(intersection.getConnections());
-                
-                // Filter for cyclist right turns if this is cyclist-arrow ruleset
-                if ("cyclist-arrow".equals(ruleset)) {
-                    return validationResults.stream()
-                            .filter(r -> r.getConnection() != null && 
-                                    r.getConnection().isCyclistRightTurn())
-                            .collect(Collectors.toList());
-                }
-                
-                return validationResults;
-            } catch (Exception e) {
-                logger.error("Failed to validate with ruleset: {}", ruleset, e);
-                throw new RuntimeException("Failed to validate with ruleset: " + ruleset, e);
-            }
-        } else {
-            // Fall back to loading rules from file for backward compatibility
-            return validateWithCustomRuleset(intersection, ruleset);
+
+            // Fallback for other rule units
+            return new ArrayList<>();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to validate intersection " + intersection.getId(), e);
         }
     }
 
@@ -409,6 +387,11 @@ public class ValidationService {
             if (!result.isValid()) {
                 formattedResult.put("reasons", result.getReasons());
             }
+            
+            // Add executed rules information
+            if (result.getExecutedRules() != null && !result.getExecutedRules().isEmpty()) {
+                formattedResult.put("executedRules", result.getExecutedRules());
+            }
 
             formattedResults.add(formattedResult);
         }
@@ -444,6 +427,14 @@ public class ValidationService {
         statistics.put("cyclistRightTurns", cyclistRightTurns);
         statistics.put("validCyclistRightTurns", validConnections);
         statistics.put("invalidCyclistRightTurns", invalidConnections);
+        
+        // Add executed rules statistics
+        if (!results.isEmpty() && results.get(0).getExecutedRules() != null) {
+            Map<String, Long> ruleExecutionCounts = results.get(0).getExecutedRules().stream()
+                    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+            statistics.put("executedRules", ruleExecutionCounts);
+        }
+        
         response.put("statistics", statistics);
         
         // Group results by approach direction

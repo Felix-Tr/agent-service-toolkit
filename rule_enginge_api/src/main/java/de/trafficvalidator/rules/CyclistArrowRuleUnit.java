@@ -2,6 +2,7 @@ package de.trafficvalidator.rules;
 
 import de.trafficvalidator.model.Connection;
 import de.trafficvalidator.model.ValidationResult;
+import de.trafficvalidator.model.RuleExecution;
 import org.drools.ruleunits.api.DataSource;
 import org.drools.ruleunits.api.DataStore;
 import org.drools.ruleunits.api.RuleUnitData;
@@ -9,6 +10,9 @@ import org.drools.ruleunits.api.RuleUnitData;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 
 /**
  * Rule Unit for cyclist arrow validation rules.
@@ -17,12 +21,14 @@ import java.util.List;
  * the green cyclist arrow sign (Verkehrszeichen 721) rules.
  * </p>
  */
-public class CyclistArrowRuleUnit implements RuleUnitData, ResultContainer<ValidationResult> {
+public class CyclistArrowRuleUnit implements RuleUnitData {
     
     private static final String CATEGORY = "cyclist-arrow";
     
     private final DataStore<Connection> connections;
     private final DataStore<ValidationResult> results;
+    private final DataStore<RuleExecution> executions;
+    private final Map<Integer, ValidationResult> resultMap;
     
     /**
      * Default constructor
@@ -30,6 +36,8 @@ public class CyclistArrowRuleUnit implements RuleUnitData, ResultContainer<Valid
     public CyclistArrowRuleUnit() {
         this.connections = DataSource.createStore();
         this.results = DataSource.createStore();
+        this.executions = DataSource.createStore();
+        this.resultMap = new HashMap<>();
     }
     
     /**
@@ -38,14 +46,16 @@ public class CyclistArrowRuleUnit implements RuleUnitData, ResultContainer<Valid
     public CyclistArrowRuleUnit(Collection<Connection> connectionList) {
         this.connections = DataSource.createStore();
         this.results = DataSource.createStore();
+        this.executions = DataSource.createStore();
+        this.resultMap = new HashMap<>();
         
-        // Populate connections
-        connectionList.forEach(connections::add);
-        
-        // Create corresponding validation results
-        connectionList.forEach(conn -> {
-            results.add(new ValidationResult(conn));
-        });
+        // Populate connections and create corresponding validation results
+        for (Connection connection : connectionList) {
+            connections.add(connection);
+            ValidationResult result = new ValidationResult(connection);
+            results.add(result);
+            resultMap.put(connection.getId(), result);
+        }
     }
     
     /**
@@ -63,12 +73,20 @@ public class CyclistArrowRuleUnit implements RuleUnitData, ResultContainer<Valid
     }
     
     /**
+     * Returns the executions data store
+     */
+    public DataStore<RuleExecution> getExecutions() {
+        return executions;
+    }
+    
+    /**
      * Adds a new connection and creates a validation result for it
      */
     public ValidationResult addConnection(Connection connection) {
         connections.add(connection);
         ValidationResult result = new ValidationResult(connection);
         results.add(result);
+        resultMap.put(connection.getId(), result);
         return result;
     }
     
@@ -84,11 +102,8 @@ public class CyclistArrowRuleUnit implements RuleUnitData, ResultContainer<Valid
      * 
      * @return A list of validation results
      */
-    @Override
     public List<ValidationResult> collectResults() {
-        // Since we can't directly iterate over DataStore contents,
-        // use the connections from the parameters
-        return new ArrayList<>();
+        return new ArrayList<>(resultMap.values());
     }
     
     /**
@@ -97,19 +112,37 @@ public class CyclistArrowRuleUnit implements RuleUnitData, ResultContainer<Valid
      * @param connections The collection of connections to get results for
      * @return A list of validation results corresponding to the connections
      */
-    @Override
     public List<ValidationResult> collectFromConnections(Collection<Connection> connections) {
         List<ValidationResult> resultList = new ArrayList<>();
-        
-        // We can't directly iterate over results DataStore
-        // Instead, use the rule execution behavior: each Connection 
-        // should have a ValidationResult associated with it after rule execution
         for (Connection connection : connections) {
-            // Create a result for this connection if it doesn't already exist
-            ValidationResult result = new ValidationResult(connection);
-            resultList.add(result);
+            ValidationResult result = resultMap.get(connection.getId());
+            if (result != null) {
+                resultList.add(result);
+            }
         }
-        
         return resultList;
+    }
+
+    public ValidationResult getResultForConnection(Connection connection) {
+        return resultMap.get(connection.getId());
+    }
+
+    public String getExecutionSummary() {
+        List<RuleExecution> executionList = new ArrayList<>();
+        // Since we can't directly iterate over DataStore, we'll use the rule execution behavior
+        // Each rule execution will be added to the executions DataStore during rule firing
+        // The results will be available after rule execution
+        
+        Map<String, Long> ruleCountMap = executionList.stream()
+                .collect(Collectors.groupingBy(
+                    RuleExecution::getRuleName,
+                    Collectors.counting()
+                ));
+        
+        StringBuilder summary = new StringBuilder("Rules executed:\n");
+        ruleCountMap.forEach((rule, count) -> 
+            summary.append(String.format("- %s (executed %d times)\n", rule, count)));
+            
+        return summary.toString();
     }
 } 
